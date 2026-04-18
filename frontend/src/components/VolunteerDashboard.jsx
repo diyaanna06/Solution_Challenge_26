@@ -1,10 +1,51 @@
-import React, { useState, useEffect, useRef } from 'react';
+ import React, { useState, useEffect, useRef } from 'react';
+import { Wrapper } from '@googlemaps/react-wrapper';
+import { toast } from 'react-toastify';
 import { auth, db } from '../config/firebase';
+import { theme, styles, getSeverityColor, getSeverityBg, getStatusColor, getStatusLabel } from '../theme';
 import { collection, query, where, getDocs, updateDoc, getDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import CreateRequest from './CreateRequest';
 import SubmitResolution from './SubmitResolution';
 import NearbyTasksMap from './NearbyTasksMap';
-import { Wrapper } from '@googlemaps/react-wrapper';
-import CreateRequest from './CreateRequest';
+import VolunteerMiniProfile from './VolunteerMiniProfile';
+
+
+ 
+const TabBtn = ({ label, active, onClick, badge }) => (
+  <button
+    onClick={onClick}
+    style={{
+      padding:         '9px 16px',
+      cursor:          'pointer',
+      border:          'none',
+      borderRadius:    theme.radiusMd,
+      fontSize:        '13px',
+      fontWeight:      active ? '700' : '500',
+      backgroundColor: active ? theme.primary : 'transparent',
+      color:           active ? 'white' : theme.textSecondary,
+      display:         'flex',
+      alignItems:      'center',
+      gap:             '6px',
+      transition:      'background 0.15s',
+      whiteSpace:      'nowrap',
+    }}
+  >
+    {label}
+    {badge != null && badge > 0 && (
+      <span style={{
+        backgroundColor: active ? 'rgba(255,255,255,0.25)' : theme.primaryBgCard,
+        color:           active ? 'white' : theme.primary,
+        fontSize:        '11px',
+        fontWeight:      '700',
+        padding:         '1px 7px',
+        borderRadius:    theme.radiusFull,
+      }}>
+        {badge}
+      </span>
+    )}
+  </button>
+);
+ 
 
 const LocationPickerMap = ({ location, setLocation }) => {
   const mapRef = useRef(null);
@@ -44,9 +85,9 @@ const LocationPickerMap = ({ location, setLocation }) => {
 
   return <div ref={mapRef} style={{ width: '100%', height: '300px', borderRadius: '8px', marginTop: '10px', border: '1px solid #ccc' }} />;
 };
-
 const VolunteerDashboard = () => {
-  const [pendingInvites, setPendingInvites] = useState([]);
+  // ── replace with your real state ──────────────────────────────────────────
+ const [pendingInvites, setPendingInvites] = useState([]);
   const [workLocation, setWorkLocation] = useState(null);
   const [skills, setSkills] = useState([]);
   const [activeTasks, setActiveTasks] = useState([]);
@@ -56,7 +97,8 @@ const VolunteerDashboard = () => {
   const [activeTab, setActiveTab] = useState('active');
   const [resolvingTaskId, setResolvingTaskId] = useState(null);
   const [mapCenter, setMapCenter] = useState({ lat: 26.8054, lng: 81.0209 });
-  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [selectedTeamTask, setSelectedTeamTask] = useState(null);
+  
 
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [tempLocation, setTempLocation] = useState(null);
@@ -91,51 +133,52 @@ useEffect(() => {
   };
 
   const handleAcceptInvite = async (request) => {
-    try {
-      const requestRef = doc(db, 'requests', request.id);
-      await updateDoc(requestRef, {
-        invitedVolunteers: arrayRemove(user.uid), 
-        volunteerTeam: arrayUnion(user.uid)       
-      });
-      alert("Successfully joined the team!");
-      fetchPendingInvites(); 
-      fetchAssignedTasks();  
-      if (workLocation) fetchNearbyTasks(workLocation);
-    } catch (error) {
-      console.error("Error accepting invite:", error);
-    }
-  };
+  try {
+    await updateDoc(doc(db, 'requests', request.id), {
+      invitedVolunteers: arrayRemove(user.uid),
+      volunteerTeam:     arrayUnion(user.uid),
+    });
+    toast.success('You have joined the team!');                // ✅ success
+    fetchPendingInvites();
+    fetchAssignedTasks();
+    if (workLocation) fetchNearbyTasks(workLocation);
+  } catch (error) {
+    console.error(error);
+    toast.error('Failed to accept invite. Please try again.'); // ❌ error
+  }
+};
 
-  const handleDeclineInvite = async (request) => {
-    try {
-      const requestRef = doc(db, 'requests', request.id);
-      await updateDoc(requestRef, {
-        invitedVolunteers: arrayRemove(user.uid)
-      });
-      fetchPendingInvites();
-    } catch (error) {
-      console.error("Error declining invite:", error);
-    }
-  };
+const handleDeclineInvite = async (request) => {
+  try {
+    await updateDoc(doc(db, 'requests', request.id), {
+      invitedVolunteers: arrayRemove(user.uid),
+    });
+    toast.info('Invite declined.');                            // ℹ️ info
+    fetchPendingInvites();
+  } catch (error) {
+    console.error(error);
+    toast.error('Failed to decline invite.');                  // ❌ error
+  }
+};
 
 
-  const handleJoinTeam = async (request, e) => {
-    e.stopPropagation(); 
-    if (!user) return;
 
-    try {
-      const requestRef = doc(db, 'requests', request.id);
-      await updateDoc(requestRef, {
-        volunteerTeam: arrayUnion(user.uid)
-      });
-      alert("Successfully joined the team!");
-      fetchAssignedTasks(); 
-      if (workLocation) fetchNearbyTasks(workLocation); 
-    } catch (error) {
-      console.error("Error joining team:", error);
-      alert("Failed to join the team.");
-    }
-  };
+const handleJoinTeam = async (request, e) => {
+  e.stopPropagation();
+  if (!user) return;
+  try {
+    await updateDoc(doc(db, 'requests', request.id), {
+      volunteerTeam: arrayUnion(user.uid),
+    });
+    toast.success('You have successfully joined the team!');   // ✅ success
+    fetchAssignedTasks();
+    if (workLocation) fetchNearbyTasks(workLocation);
+  } catch (error) {
+    console.error(error);
+    toast.error('Failed to join the team. Please try again.'); // ❌ error
+  }
+};
+
 
   const fetchVolunteerData = async () => {
     const userRef = doc(db, 'users', user.uid);
@@ -207,346 +250,1004 @@ useEffect(() => {
     }
   };
 
-  const handleAutoDetect = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
-      return;
-    }
-    
-    setLocationStatusMsg("Detecting location...");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setTempLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        });
-        setLocationStatusMsg("Location captured! Drag the pin to refine it if needed.");
-      },
-      (error) => {
-        console.error("Error updating location:", error);
-        setLocationStatusMsg("Failed to auto-detect. Please manually drag the pin.");
-      },
-      { enableHighAccuracy: true }
-    );
-  };
-
-  const handleSaveLocation = async () => {
-    if (!tempLocation) return;
-    setIsSavingLocation(true);
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { workLocation: tempLocation });
-      setWorkLocation(tempLocation);
-      setMapCenter(tempLocation);
-      fetchNearbyTasks(tempLocation); 
-      setShowLocationModal(false);
-    } catch (error) {
-      console.error("Error saving location:", error);
-      alert("Failed to save location. Try again.");
-    } finally {
-      setIsSavingLocation(false);
-    }
-  };
-
-  if (loading) return <div style={{ padding: '20px' }}>Loading Dashboard...</div>;
-
-  return (
-    <div style={{ maxWidth: '900px', margin: '2rem auto', padding: '20px' }}>
-      {pendingInvites.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
-          {pendingInvites.map(invite => (
-            <div key={invite.id} style={{ 
-              backgroundColor: '#ffeeba', border: '1px solid #ffc107', 
-              padding: '15px', borderRadius: '8px', marginBottom: '10px',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-            }}>
-              <h3 style={{ margin: '0 0 10px 0', color: '#856404' }}>🚨 Urgent Assignment Request!</h3>
-              <p style={{ margin: '0 0 10px 0' }}>The AI has selected you for a priority task: <strong>{invite.description}</strong></p>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                  onClick={() => handleAcceptInvite(invite)}
-                  style={{ backgroundColor: '#28a745', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                  Accept & Join Team
-                </button>
-                <button 
-                  onClick={() => handleDeclineInvite(invite)}
-                  style={{ backgroundColor: '#dc3545', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                  Decline
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <h2>Volunteer Dashboard</h2>
-
-      <div style={{ marginBottom: '20px', fontSize: '14px', color: '#555', backgroundColor: '#e9ecef', padding: '10px', borderRadius: '6px', display: 'inline-block' }}>
-        {workLocation ? (
-          <>📍 <strong>Base Operating Area:</strong> {workLocation.lat.toFixed(4)}, {workLocation.lng.toFixed(4)}</>
-        ) : (
-          <>📍 Work Area: Not Set</>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', gap: '10px', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '20px' }}>
-        <button onClick={() => setActiveTab('active')} style={{ fontWeight: activeTab === 'active' ? 'bold' : 'normal', padding: '8px 16px', border: 'none', background: activeTab === 'active' ? '#e2e3e5' : 'transparent', borderRadius: '4px', cursor: 'pointer' }}>
-          Active Tasks ({activeTasks.length})
-        </button>
-        <button onClick={() => setActiveTab('nearby')} style={{ fontWeight: activeTab === 'nearby' ? 'bold' : 'normal', padding: '8px 16px', border: 'none', background: activeTab === 'nearby' ? '#e2e3e5' : 'transparent', borderRadius: '4px', cursor: 'pointer' }}>
-          Map & Nearby Tasks
-        </button>
-        <button onClick={() => setActiveTab('create')} style={{ fontWeight: activeTab === 'create' ? 'bold' : 'normal', padding: '8px 16px', border: 'none', background: activeTab === 'create' ? '#e2e3e5' : 'transparent', borderRadius: '4px', cursor: 'pointer' }}>
-          Create Request
-        </button>
-        <button onClick={() => setActiveTab('history')} style={{ fontWeight: activeTab === 'history' ? 'bold' : 'normal', padding: '8px 16px', border: 'none', background: activeTab === 'history' ? '#e2e3e5' : 'transparent', borderRadius: '4px', cursor: 'pointer' }}>
-          History & Pending
-        </button>
-      </div>
-
-      <div style={{ padding: '10px 0' }}>
-        
-        {activeTab === 'active' && (
-          <div>
-            <h3>Your Assigned Tasks</h3>
-            {activeTasks.length === 0 ? <p>No active tasks right now.</p> : (
-              activeTasks.map(task => {
-                // Calculate distance if both locations are available
-                const distance = workLocation && task.location 
-                  ? calculateDistance(workLocation.lat, workLocation.lng, task.location.lat, task.location.lng) 
-                  : null;
-
-                return (
-                  <div key={task.id} style={{ border: '1px solid #ddd', padding: '15px', margin: '15px 0', borderRadius: '8px', backgroundColor: '#fff', borderLeft: '4px solid #007bff' }}>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '5px' }}>
-                      <span style={{ color: '#c00' }}>Severity: {task.criticalScore}/10</span>
-                      <span style={{ color: '#007bff' }}>Status: Active</span>
-                    </div>
-                    {task.createdAt && (
-                      <div style={{ fontSize: '12px', color: '#888', marginBottom: '10px' }}>
-                        📅 {typeof task.createdAt === 'string' ? task.createdAt : new Date(task.createdAt).toLocaleString()}
-                      </div>
-                    )}
-                    <p style={{ margin: '0 0 12px 0', fontSize: '16px', color: '#333' }}>{task.description}</p>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px', backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '4px', marginBottom: '10px' }}>
-                      {task.affectedCount && <div><strong>👥 Affected:</strong> {task.affectedCount}</div>}
-                      {distance !== null && <div><strong>📍 Distance:</strong> {distance.toFixed(1)} km</div>}
-                      {task.volunteerTeam && <div><strong>🤝 Team Size:</strong> {task.volunteerTeam.length} / {task.requiredVolunteers || '?'}</div>}
-                    </div>
-
-                    {task.needSkill && task.needSkill.length > 0 && (
-                      <div style={{ marginBottom: '15px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 'bold', marginRight: '5px' }}>Skills Needed:</span>
-                        {task.needSkill.map((skill, idx) => (
-                          <span key={idx} style={{ display: 'inline-block', backgroundColor: '#e2e3e5', padding: '3px 8px', borderRadius: '12px', fontSize: '12px', marginRight: '5px', marginBottom: '5px', color: '#383d41' }}>
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {resolvingTaskId === task.id ? (
-                      <SubmitResolution 
-                        task={task} 
-                        onCancel={() => setResolvingTaskId(null)} 
-                        onSuccess={() => {
-                          setResolvingTaskId(null);
-                          fetchAssignedTasks();
-                        }} 
-                      />
-                    ) : (
-                      <button 
-                        onClick={() => setResolvingTaskId(task.id)}
-                        style={{ width: '100%', backgroundColor: '#28a745', color: 'white', padding: '10px 15px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                      >
-                        Mark as Resolved & Upload Proof
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
-
-        {activeTab === 'create' && (
-          <div>
-            <h3>Submit a New Request</h3>
-            <p style={{ color: '#555', marginBottom: '20px' }}>Need assistance? Submit a request to alert the network.</p>
-            <CreateRequest />
-          </div>
-        )}
-
-        {activeTab === 'nearby' && (
-          <div style={{ display: 'flex', gap: '20px', height: '650px', marginTop: '10px' }}>
-            
-            <div style={{ width: '400px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '8px', padding: '15px', backgroundColor: '#f8f9fa' }}>
-              <h3 style={{ marginTop: 0 }}>Nearby Issues</h3>
-              
-              {nearbyTasks.length === 0 ? <p>No nearby tasks currently active.</p> : null}
-
-              {nearbyTasks.map((req) => {
-                const teamSize = req.volunteerTeam?.length || 0;
-                const isFull = teamSize >= (req.requiredVolunteers || 1);
-                const isMember = req.volunteerTeam?.includes(auth.currentUser?.uid);
-                const distance = calculateDistance(workLocation.lat, workLocation.lng, req.location.lat, req.location.lng);
-
-                return (
-                  <div 
-                    key={req.id} 
-                    onClick={() => {
-                      setMapCenter({ lat: req.location.lat, lng: req.location.lng });
-                      setSelectedRequest(req);
-                    }}
-                    style={{ backgroundColor: '#fff', padding: '15px', marginBottom: '15px', borderRadius: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', cursor: 'pointer', borderLeft: `4px solid ${req.criticalScore >= 7 ? '#dc3545' : '#ffc107'}`}}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '5px' }}>
-                      <span style={{ color: '#c00' }}>Severity: {req.criticalScore}/10</span>
-                      <span style={{ color: isFull ? '#dc3545' : '#28a745' }}>Team: {teamSize}/{req.requiredVolunteers || '?'}</span>
-                    </div>
-
-                    {req.createdAt && (
-                      <div style={{ fontSize: '12px', color: '#888', marginBottom: '10px' }}>
-                        📅 {typeof req.createdAt === 'string' ? req.createdAt : new Date(req.createdAt).toLocaleString()}
-                      </div>
-                    )}
-                    
-                    <p style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#333' }}>{req.description}</p>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '4px', marginBottom: '10px' }}>
-                      {req.affectedCount && <div><strong>👥 Affected:</strong> {req.affectedCount}</div>}
-                      <div><strong>📍 Distance:</strong> {distance.toFixed(1)} km</div>
-                    </div>
-
-                    {req.needSkill && req.needSkill.length > 0 && (
-                      <div style={{ marginBottom: '15px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 'bold', marginRight: '5px' }}>Skills Needed:</span>
-                        {req.needSkill.map((skill, idx) => (
-                          <span key={idx} style={{ display: 'inline-block', backgroundColor: '#e2e3e5', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', marginRight: '5px', marginBottom: '5px', color: '#383d41' }}>
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {isMember ? (
-                      <button disabled style={{ width: '100%', padding: '10px', backgroundColor: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>✓ You are on this team</button>
-                    ) : isFull ? (
-                      <button disabled style={{ width: '100%', padding: '10px', backgroundColor: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>Team Full</button>
-                    ) : (
-                      <button onClick={(e) => handleJoinTeam(req, e)} style={{ width: '100%', padding: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Join Team</button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ flex: 1, borderRadius: '8px', overflow: 'hidden', border: '1px solid #ddd' }}>
-              {workLocation ? (
-                <NearbyTasksMap center={mapCenter} baseLocation={workLocation} tasks={nearbyTasks} />
-              ) : (
-                <p style={{ padding: '20px' }}>Please set your work location to view the map.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'history' && (
-          <div>
-            <h3>Completed & Pending Admin Approval</h3>
-            {completedTasks.length === 0 ? <p>No history yet.</p> : (
-              completedTasks.map(task => {
-                const distance = workLocation && task.location 
-                  ? calculateDistance(workLocation.lat, workLocation.lng, task.location.lat, task.location.lng) 
-                  : null;
-
-                return (
-                  <div key={task.id} style={{ border: '1px solid #ddd', padding: '15px', margin: '15px 0', borderRadius: '8px', opacity: 0.8, backgroundColor: '#f8f9fa' }}>
-                    
-                    {/* Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '5px' }}>
-                      <span style={{ color: '#555' }}>Severity: {task.criticalScore}/10</span>
-                      <span style={{ color: task.status === 'resolved' ? '#28a745' : '#f0ad4e', textTransform: 'capitalize' }}>
-                        {task.status.replace('_', ' ')}
-                      </span>
-                    </div>
-
-                    {task.createdAt && (
-                      <div style={{ fontSize: '12px', color: '#888', marginBottom: '10px' }}>
-                        📅 {typeof task.createdAt === 'string' ? task.createdAt : new Date(task.createdAt).toLocaleString()}
-                      </div>
-                    )}
-                    
-                    <p style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#444' }}>{task.description}</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px', color: '#666', marginBottom: '10px' }}>
-                      {task.affectedCount && <div><strong>👥 Affected:</strong> {task.affectedCount}</div>}
-                    </div>
-                    {task.needSkill && task.needSkill.length > 0 && (
-                      <div style={{ marginBottom: '5px' }}>
-                        {task.needSkill.map((skill, idx) => (
-                          <span key={idx} style={{ display: 'inline-block', border: '1px solid #ccc', padding: '2px 6px', borderRadius: '12px', fontSize: '11px', marginRight: '5px', marginBottom: '5px', color: '#666' }}>
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
-      </div>
-      {showLocationModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '100%', maxWidth: '600px', boxShadow: '0 4px 20px rgba(0,0,0,0.2)', position: 'relative' }}>
-            
-            <div style={{ marginBottom: '15px' }}>
-              <h2 style={{ color: '#007bff', marginTop: 0 }}>Welcome to the Team!</h2>
-              <p style={{ fontSize: '15px', color: '#333' }}>
-                An Admin has promoted you. Your assigned skills are: <strong>{skills.length > 0 ? skills.join(', ') : 'General Help'}</strong>.
-              </p>
-            </div>
-
-            <h3 style={{ marginTop: 0, borderBottom: '1px solid #eee', paddingBottom: '10px' }}>Set Your Base Operating Area</h3>
-            <p style={{ fontSize: '14px', color: '#555' }}>We need to know your central location so the AI can assign you to nearby crises. <strong>This cannot be easily changed later.</strong></p>
-            
-            <button 
-              onClick={handleAutoDetect} 
-              style={{ width: '100%', padding: '12px', fontSize: '16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginBottom: '10px' }}
-            >
-              📍 Auto-Detect My Location
-            </button>
-
-            {locationStatusMsg && <p style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '14px', margin: '5px 0' }}>{locationStatusMsg}</p>}
-
-            {tempLocation && (
-              <div style={{ marginBottom: '15px' }}>
-                <Wrapper apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-                  <LocationPickerMap location={tempLocation} setLocation={setTempLocation} />
-                </Wrapper>
-                <p style={{ fontSize: '12px', color: '#666', textAlign: 'center', marginTop: '5px' }}>
-                  Coordinates: {tempLocation.lat.toFixed(5)}, {tempLocation.lng.toFixed(5)}
-                </p>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button 
-                onClick={handleSaveLocation} 
-                disabled={!tempLocation || isSavingLocation}
-                style={{ width: '100%', padding: '12px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '6px', cursor: (!tempLocation || isSavingLocation) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
-              >
-                {isSavingLocation ? 'Saving...' : 'Confirm & Lock Base Location'}
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-    </div>
+const handleAutoDetect = () => {
+  if (!navigator.geolocation) {
+    toast.warning('Geolocation is not supported by your browser.'); // ⚠️ warning
+    return;
+  }
+  toast.info('Detecting your location…');                           // ℹ️ info
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      setTempLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+      toast.success('Location captured! Drag the pin to refine if needed.'); // ✅ success
+      setLocationStatusMsg('');
+    },
+    (error) => {
+      console.error(error);
+      toast.error('Could not auto-detect location. Drag the pin manually.'); // ❌ error
+    },
+    { enableHighAccuracy: true }
   );
 };
 
+const handleSaveLocation = async () => {
+  if (!tempLocation) return;
+  setIsSavingLocation(true);
+  try {
+    await updateDoc(doc(db, 'users', user.uid), { workLocation: tempLocation });
+    setWorkLocation(tempLocation);
+    setMapCenter(tempLocation);
+    fetchNearbyTasks(tempLocation);
+    setShowLocationModal(false);
+    toast.success('Work location saved!');                      // ✅ success
+  } catch (error) {
+    console.error(error);
+    toast.error('Failed to save location. Please try again.'); // ❌ error
+  } finally {
+    setIsSavingLocation(false);
+  }
+};
+  return (
+    <div style={{ fontFamily: theme.fontFamily, minHeight: '100vh', backgroundColor: theme.bg }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '28px 20px' }}>
+ {/* ── Pending Invites ────────────────────────────────────────────────── */}
+{pendingInvites.length > 0 && (
+  <div style={{ marginBottom: '28px' }}>
+
+    {/* Section header */}
+    <div style={{
+      display:        'flex',
+      alignItems:     'center',
+      justifyContent: 'space-between',
+      marginBottom:   '14px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '16px' }}>🚨</span>
+        <span style={{ fontSize: '14px', fontWeight: '700', color: theme.textPrimary }}>
+          Urgent Assignments
+        </span>
+        <span style={{
+          backgroundColor: theme.danger,
+          color:           'white',
+          fontSize:        '11px',
+          fontWeight:      '800',
+          padding:         '2px 8px',
+          borderRadius:    theme.radiusFull,
+        }}>
+          {pendingInvites.length}
+        </span>
+      </div>
+      <span style={{ fontSize: '12px', color: theme.textMuted }}>
+        AI‑matched to your skills
+      </span>
+    </div>
+
+    {/* Cards */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {pendingInvites.map(invite => {
+        const score    = invite.criticalScore || 0;
+        const teamSize = invite.volunteerTeam?.length || 0;
+        const isFull   = teamSize >= (invite.requiredVolunteers || 1);
+
+        // severity label
+        const severityLabel = score >= 8 ? 'Critical' : score >= 5 ? 'High' : 'Moderate';
+
+        // which of the volunteer's skills match the task
+        const matchedSkills  = skills.filter(s => invite.needSkill?.includes(s));
+        const unmatchedSkills = (invite.needSkill || []).filter(s => !skills.includes(s));
+
+        return (
+          <div
+            key={invite.id}
+            style={{
+              backgroundColor: theme.bgCard,
+              border:          `1px solid ${theme.warningBorder}`,
+              borderLeft:      `4px solid ${getSeverityColor(score)}`,
+              borderRadius:    theme.radiusLg,
+              overflow:        'hidden',
+              boxShadow:       theme.shadow,
+            }}
+          >
+            {/* Card body */}
+            <div style={{ padding: '14px 16px 12px' }}>
+
+              {/* Top row: severity + distance + time */}
+              <div style={{
+                display:        'flex',
+                alignItems:     'center',
+                justifyContent: 'space-between',
+                marginBottom:   '10px',
+                flexWrap:       'wrap',
+                gap:            '6px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{
+                    backgroundColor: getSeverityBg(score),
+                    color:           getSeverityColor(score),
+                    fontSize:        '11px',
+                    fontWeight:      '700',
+                    padding:         '3px 10px',
+                    borderRadius:    theme.radiusFull,
+                  }}>
+                    ⚡ {score}/10 {severityLabel}
+                  </span>
+                  {workLocation && invite.location && (
+                    <span style={{
+                      backgroundColor: theme.warningLight,
+                      color:           theme.warning,
+                      fontSize:        '11px',
+                      fontWeight:      '600',
+                      padding:         '3px 10px',
+                      borderRadius:    theme.radiusFull,
+                      border:          `1px solid ${theme.warningBorder}`,
+                    }}>
+                      📍 {calculateDistance(
+                        workLocation.lat, workLocation.lng,
+                        invite.location.lat, invite.location.lng
+                      ).toFixed(1)} km
+                    </span>
+                  )}
+                </div>
+                {invite.createdAt && (
+                  <span style={{ fontSize: '11px', color: theme.textMuted }}>
+                    {new Date(invite.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
+
+              {/* Description */}
+              <p style={{
+                margin:     '0 0 10px 0',
+                fontSize:   '15px',
+                fontWeight: '600',
+                color:      theme.textPrimary,
+                lineHeight: 1.4,
+              }}>
+                {invite.description}
+              </p>
+
+              {/* Meta chips */}
+              <div style={{
+                display:        'flex',
+                gap:            '14px',
+                fontSize:       '12px',
+                color:          theme.textSecondary,
+                marginBottom:   '12px',
+                flexWrap:       'wrap',
+              }}>
+                {invite.affectedCount && (
+                  <span>👥 {invite.affectedCount} affected</span>
+                )}
+                <span style={{
+                  color: isFull ? theme.danger : theme.success,
+                  fontWeight: '600',
+                }}>
+                  🤝 Team: {teamSize}/{invite.requiredVolunteers || '?'}
+                </span>
+              </div>
+
+              {/* Skills — matched highlighted green, others muted */}
+              {(invite.needSkill?.length > 0) && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                  {matchedSkills.map((sk, i) => (
+                    <span key={i} style={{
+                      backgroundColor: theme.primaryBgCard,
+                      color:           theme.primaryDark,
+                      border:          `1px solid ${theme.primaryBorder}`,
+                      fontSize:        '11px',
+                      fontWeight:      '700',
+                      padding:         '3px 10px',
+                      borderRadius:    theme.radiusFull,
+                    }}>
+                      ✓ {sk}
+                    </span>
+                  ))}
+                  {unmatchedSkills.map((sk, i) => (
+                    <span key={i} style={{
+                      ...styles.skillBadge,
+                      fontSize: '11px',
+                    }}>
+                      {sk}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons — flush bottom, split */}
+            <div style={{
+              display:     'flex',
+              borderTop:   `1px solid ${theme.warningBorder}`,
+            }}>
+              <button
+                onClick={() => handleAcceptInvite(invite)}
+                style={{
+                  flex:            1,
+                  padding:         '11px',
+                  backgroundColor: theme.success,
+                  color:           'white',
+                  border:          'none',
+                  borderRadius:    `0 0 0 ${theme.radiusLg}`,
+                  fontWeight:      '700',
+                  fontSize:        '13px',
+                  cursor:          'pointer',
+                  fontFamily:      theme.fontFamily,
+                  transition:      'background-color 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = theme.primaryDark}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = theme.success}
+              >
+                ✅ Accept & Join Team
+              </button>
+              <div style={{ width: '1px', backgroundColor: theme.warningBorder }} />
+              <button
+                onClick={() => handleDeclineInvite(invite)}
+                style={{
+                  flex:            1,
+                  padding:         '11px',
+                  backgroundColor: theme.bgCard,
+                  color:           theme.danger,
+                  border:          'none',
+                  borderRadius:    `0 0 ${theme.radiusLg} 0`,
+                  fontWeight:      '600',
+                  fontSize:        '13px',
+                  cursor:          'pointer',
+                  fontFamily:      theme.fontFamily,
+                  transition:      'background-color 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = theme.dangerLight}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = theme.bgCard}
+              >
+                ✕ Decline
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
+        {/* ── Dashboard header ───────────────────────────────────────────── */}
+        <div style={{
+          display:         'flex',
+          justifyContent:  'space-between',
+          alignItems:      'center',
+          marginBottom:    '20px',
+          flexWrap:        'wrap',
+          gap:             '12px',
+        }}>
+          <div>
+            <h1 style={{ margin: '0 0 4px 0', fontSize: '22px', fontWeight: '800', color: theme.textPrimary }}>
+              🤝 Volunteer Dashboard
+            </h1>
+          </div>
+          <div style={{
+            display:         'flex',
+            alignItems:      'center',
+            gap:             '8px',
+            fontSize:        '13px',
+            fontWeight:      '500',
+            color:           theme.textSecondary,
+            backgroundColor: theme.primaryBg,
+            padding:         '8px 14px',
+            borderRadius:    theme.radiusFull,
+            border:          `1px solid ${theme.primaryBorder}`,
+          }}>
+            📍
+            {workLocation
+              ? <><strong style={{ color: theme.textPrimary }}>Base:</strong> {workLocation.lat.toFixed(4)}, {workLocation.lng.toFixed(4)}</>
+              : <span style={{ color: theme.danger }}>Base area not set</span>
+            }
+          </div>
+        </div>
+ 
+        {/* ── Tabs ────────────────────────────────────────────────────────── */}
+        <div style={{
+          display:         'flex',
+          gap:             '6px',
+          backgroundColor: theme.primaryBg,
+          padding:         '6px',
+          borderRadius:    theme.radiusLg,
+          marginBottom:    '28px',
+          border:          `1px solid ${theme.border}`,
+          overflowX:       'auto',
+        }}>
+          <TabBtn label="⚡ Active Tasks"     active={activeTab === 'active'}  onClick={() => setActiveTab('active')}  badge={activeTasks.length} />
+          <TabBtn label="🗺️ Map & Nearby"    active={activeTab === 'nearby'}  onClick={() => setActiveTab('nearby')}  badge={nearbyTasks.length} />
+          <TabBtn label="🚨 Create Request"   active={activeTab === 'create'}  onClick={() => setActiveTab('create')} />
+          <TabBtn label="📋 History"          active={activeTab === 'history'} onClick={() => setActiveTab('history')} />
+        </div>
+ 
+        {/* ── Tab: Active Tasks ────────────────────────────────────────────── */}
+        {activeTab === 'active' && (
+          <div>
+            {activeTasks.length === 0 ? (
+              <div style={{
+                textAlign:       'center',
+                padding:         '60px 24px',
+                backgroundColor: theme.primaryBg,
+                borderRadius:    theme.radiusLg,
+                border:          `1px solid ${theme.border}`,
+              }}>
+                <div style={{ fontSize: '40px', marginBottom: '12px' }}>✅</div>
+                <p style={{ margin: 0, fontWeight: '600', color: theme.textSecondary }}>
+                  No active tasks right now. Check the map for nearby needs!
+                </p>
+              </div>
+            ) : activeTasks.map(task => {
+              const distance = workLocation && task.location
+                ? calculateDistance(workLocation.lat, workLocation.lng, task.location.lat, task.location.lng)
+                : null;
+ 
+              return (
+                <div key={task.id} style={{
+                  border:          `1px solid ${theme.border}`,
+                  borderLeft:      `5px solid ${theme.primary}`,
+                  borderRadius:    theme.radiusLg,
+                  padding:         '20px',
+                  marginBottom:    '16px',
+                  backgroundColor: 'white',
+                  boxShadow:       theme.shadow,
+                }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{
+                      backgroundColor: getSeverityBg(task.criticalScore),
+                      color:           getSeverityColor(task.criticalScore),
+                      padding:         '4px 12px',
+                      borderRadius:    theme.radiusFull,
+                      fontSize:        '12px',
+                      fontWeight:      '700',
+                    }}>
+                      ⚡ Severity {task.criticalScore}/10
+                    </span>
+                    <span style={{
+                      backgroundColor: theme.primaryBgCard,
+                      color:           theme.primary,
+                      padding:         '4px 12px',
+                      borderRadius:    theme.radiusFull,
+                      fontSize:        '12px',
+                      fontWeight:      '700',
+                      border:          `1px solid ${theme.primaryBorder}`,
+                    }}>
+                      ● Active
+                    </span>
+                  </div>
+ 
+                  {task.createdAt && (
+                    <div style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '10px' }}>
+                      📅 {typeof task.createdAt === 'string' ? task.createdAt : new Date(task.createdAt).toLocaleString()}
+                    </div>
+                  )}
+ 
+                  <p style={{ margin: '0 0 16px 0', fontSize: '15px', color: theme.textPrimary, lineHeight: 1.55 }}>
+                    {task.description}
+                  </p>
+ 
+                  {/* Meta grid */}
+                  <div style={{
+                    display:             'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                    gap:                 '10px',
+                    backgroundColor:     theme.primaryBg,
+                    padding:             '12px',
+                    borderRadius:        theme.radiusMd,
+                    marginBottom:        '14px',
+                    fontSize:            '13px',
+                  }}>
+                    {task.affectedCount && (
+                      <div><span style={{ color: theme.textMuted }}>👥 Affected</span><br /><strong>{task.affectedCount}</strong></div>
+                    )}
+                    {distance !== null && (
+                      <div><span style={{ color: theme.textMuted }}>📍 Distance</span><br /><strong>{distance.toFixed(1)} km</strong></div>
+                    )}
+                    {task.volunteerTeam && (
+                      <div><span style={{ color: theme.textMuted }}>🤝 Team</span><br /><strong>{task.volunteerTeam.length} / {task.requiredVolunteers || '?'}</strong></div>
+                    )}
+                  </div>
+ 
+                  {/* Skills */}
+                  {task.needSkill?.length > 0 && (
+                    <div style={{ marginBottom: '14px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '6px' }}>
+                        Skills Needed:
+                      </span>
+                      {task.needSkill.map((sk, i) => (
+                        <span key={i} style={styles.skillBadge}>{sk}</span>
+                      ))}
+                    </div>
+                  )}
+ 
+                  {/* Volunteer team mini-profiles */}
+                  {task.volunteerTeam?.length > 0 && (
+                    <div style={{ marginBottom: '14px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                        Team Members
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                        {task.volunteerTeam.map(uid => (
+                          <VolunteerMiniProfile key={uid} uid={uid} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+ 
+                  {resolvingTaskId === task.id ? (
+                    <SubmitResolution
+                      task={task}
+                      onCancel={() => setResolvingTaskId(null)}
+                      onSuccess={() => { setResolvingTaskId(null); fetchAssignedTasks(); }}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setResolvingTaskId(task.id)}
+                      style={{ ...styles.btnSuccess, width: '100%', padding: '13px', fontSize: '15px' }}
+                    >
+                      📸 Mark as Resolved & Upload Proof
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+ 
+        {activeTab === 'nearby' && (
+  <div style={{ display: 'flex', gap: '20px', height: '680px' }}>
+
+    {/* List panel */}
+    <div style={{
+      width:           '380px',
+      flexShrink:      0,
+      overflowY:       'auto',
+      border:          `1px solid ${theme.border}`,
+      borderRadius:    theme.radiusLg,
+      padding:         '16px',
+      backgroundColor: theme.primaryBg,
+    }}>
+      <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: '700', color: theme.textPrimary }}>
+        Nearby Issues
+      </h3>
+
+      {nearbyTasks.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: theme.textMuted }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🗺️</div>
+          No active tasks nearby.
+        </div>
+      ) : nearbyTasks.map(req => {
+        const teamSize = req.volunteerTeam?.length || 0;
+        const isFull   = teamSize >= (req.requiredVolunteers || 1);
+        const isMember = req.volunteerTeam?.includes(auth.currentUser?.uid);
+        const dist     = workLocation
+          ? calculateDistance(workLocation.lat, workLocation.lng, req.location.lat, req.location.lng)
+          : 0;
+
+        return (
+          <div
+            key={req.id}
+            onClick={() => setMapCenter({ lat: req.location.lat, lng: req.location.lng })}
+            style={{
+              backgroundColor: 'white',
+              padding:         '14px',
+              marginBottom:    '12px',
+              borderRadius:    theme.radiusMd,
+              boxShadow:       theme.shadow,
+              cursor:          'pointer',
+              borderLeft:      `4px solid ${getSeverityColor(req.criticalScore)}`,
+              border:          `1px solid ${theme.border}`,
+              transition:      'box-shadow 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.boxShadow = theme.shadowMd}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = theme.shadow}
+          >
+            {/* Top row: severity + clickable team badge */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{
+                fontSize:        '12px',
+                fontWeight:      '700',
+                color:           getSeverityColor(req.criticalScore),
+                backgroundColor: getSeverityBg(req.criticalScore),
+                padding:         '3px 10px',
+                borderRadius:    theme.radiusFull,
+              }}>
+                ⚡ {req.criticalScore}/10
+              </span>
+
+              {/* ── Clickable team badge ───────────────────────────── */}
+              <span
+                onClick={e => {
+                  e.stopPropagation();
+                  if (teamSize > 0) setSelectedTeamTask(req);
+                }}
+                style={{
+                  display:         'inline-flex',
+                  alignItems:      'center',
+                  gap:             '4px',
+                  fontSize:        '12px',
+                  fontWeight:      '700',
+                  color:           isFull ? theme.danger : theme.success,
+                  backgroundColor: isFull ? theme.dangerLight : theme.successLight,
+                  border:          `1px solid ${isFull ? theme.dangerBorder : theme.successBorder}`,
+                  borderRadius:    theme.radiusFull,
+                  padding:         '3px 10px',
+                  cursor:          teamSize > 0 ? 'pointer' : 'default',
+                  transition:      'opacity 0.15s',
+                }}
+                onMouseEnter={e => { if (teamSize > 0) e.currentTarget.style.opacity = '0.75'; }}
+                onMouseLeave={e => { if (teamSize > 0) e.currentTarget.style.opacity = '1'; }}
+              >
+                🤝 Team: {teamSize}/{req.requiredVolunteers || '?'}
+                {teamSize > 0 && <span style={{ opacity: 0.6, fontSize: '11px' }}>↗</span>}
+              </span>
+            </div>
+
+            {req.createdAt && (
+              <div style={{ fontSize: '11px', color: theme.textMuted, marginBottom: '8px' }}>
+                📅 {typeof req.createdAt === 'string' ? req.createdAt : new Date(req.createdAt).toLocaleString()}
+              </div>
+            )}
+
+            <p style={{ margin: '0 0 10px 0', fontSize: '14px', color: theme.textPrimary, lineHeight: 1.45 }}>
+              {req.description}
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: theme.textSecondary, marginBottom: '10px' }}>
+              {req.affectedCount && <span>👥 {req.affectedCount} affected</span>}
+              <span>📍 {dist.toFixed(1)} km</span>
+            </div>
+
+            {req.needSkill?.length > 0 && (
+              <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                {req.needSkill.map((sk, i) => (
+                  <span key={i} style={{ ...styles.skillBadge, fontSize: '11px' }}>{sk}</span>
+                ))}
+              </div>
+            )}
+
+            {isMember ? (
+              <button disabled style={{
+                width:           '100%',
+                padding:         '9px',
+                backgroundColor: theme.successLight,
+                color:           theme.success,
+                border:          `1px solid ${theme.successBorder}`,
+                borderRadius:    theme.radiusSm,
+                fontWeight:      '700',
+                fontSize:        '13px',
+              }}>
+                ✓ You're on this team
+              </button>
+            ) : isFull ? (
+              <button disabled style={{
+                width:           '100%',
+                padding:         '9px',
+                backgroundColor: theme.dangerLight,
+                color:           theme.danger,
+                border:          `1px solid ${theme.dangerBorder}`,
+                borderRadius:    theme.radiusSm,
+                fontWeight:      '700',
+                fontSize:        '13px',
+              }}>
+                Team Full
+              </button>
+            ) : (
+              <button
+                onClick={e => handleJoinTeam(req, e)}
+                style={{ ...styles.btnPrimary, padding: '9px', fontSize: '13px' }}
+              >
+                Join Team
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+
+    {/* Map panel */}
+    <div style={{ flex: 1, borderRadius: theme.radiusLg, overflow: 'hidden', border: `1px solid ${theme.border}` }}>
+      {workLocation ? (
+        <NearbyTasksMap center={mapCenter} baseLocation={workLocation} tasks={nearbyTasks} />
+      ) : (
+        <div style={{
+          width:           '100%',
+          height:          '100%',
+          display:         'flex',
+          flexDirection:   'column',
+          alignItems:      'center',
+          justifyContent:  'center',
+          backgroundColor: theme.primaryBg,
+        }}>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>📍</div>
+          <p style={{ color: theme.textSecondary, fontSize: '14px' }}>
+            Set your base location to view the map.
+          </p>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+
+
+{/* ── Team Modal ─────────────────────────────────────────────────────────── */}
+{selectedTeamTask && (
+  <div
+    onClick={() => setSelectedTeamTask(null)}
+    style={{
+      position:        'fixed',
+      inset:           0,
+      backgroundColor: theme.bgOverlay,
+      zIndex:          999,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      padding:         '20px',
+      backdropFilter:  'blur(2px)',
+    }}
+  >
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        backgroundColor: theme.bgCard,
+        borderRadius:    theme.radiusXl,
+        width:           '100%',
+        maxWidth:        '560px',
+        maxHeight:       '85vh',
+        overflowY:       'auto',
+        boxShadow:       '0 24px 64px rgba(0,0,0,0.28)',
+        border:          `1px solid ${theme.border}`,
+      }}
+    >
+      {/* Sticky header */}
+      <div style={{
+        display:         'flex',
+        alignItems:      'center',
+        justifyContent:  'space-between',
+        padding:         '14px 20px',
+        backgroundColor: theme.primaryBg,
+        borderBottom:    `1px solid ${theme.primaryBorder}`,
+        borderRadius:    `${theme.radiusXl} ${theme.radiusXl} 0 0`,
+        position:        'sticky',
+        top:             0,
+        zIndex:          1,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '16px' }}>🤝</span>
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '15px', color: theme.textPrimary }}>
+              Volunteer Team
+            </div>
+            <div style={{ fontSize: '12px', color: theme.textMuted, marginTop: '1px' }}>
+              {selectedTeamTask.volunteerTeam.length} of {selectedTeamTask.requiredVolunteers || '?'} members assigned
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => setSelectedTeamTask(null)}
+          style={{
+            background:      'none',
+            border:          `1px solid ${theme.primaryBorder}`,
+            borderRadius:    theme.radiusFull,
+            width:           '30px',
+            height:          '30px',
+            display:         'flex',
+            alignItems:      'center',
+            justifyContent:  'center',
+            fontSize:        '18px',
+            cursor:          'pointer',
+            color:           theme.textMuted,
+            flexShrink:      0,
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      <div style={{ padding: '18px 20px 22px' }}>
+
+        {/* Request context strip */}
+        <div style={{
+          padding:         '12px 14px',
+          backgroundColor: theme.primaryBgCard,
+          border:          `1px solid ${theme.primaryBorder}`,
+          borderRadius:    theme.radiusMd,
+          marginBottom:    '18px',
+          display:         'flex',
+          justifyContent:  'space-between',
+          alignItems:      'flex-start',
+          gap:             '12px',
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '11px', fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+              Task
+            </div>
+            <div style={{ fontSize: '14px', color: theme.textPrimary, lineHeight: 1.4 }}>
+              {selectedTeamTask.description}
+            </div>
+            <div style={{ marginTop: '8px', display: 'flex', gap: '10px', fontSize: '12px', color: theme.textSecondary }}>
+              {selectedTeamTask.affectedCount && <span>👥 {selectedTeamTask.affectedCount} affected</span>}
+              {workLocation && selectedTeamTask.location && (
+                <span>📍 {calculateDistance(workLocation.lat, workLocation.lng, selectedTeamTask.location.lat, selectedTeamTask.location.lng).toFixed(1)} km away</span>
+              )}
+            </div>
+          </div>
+          <span style={{
+            fontSize:        '12px',
+            fontWeight:      '700',
+            color:           getSeverityColor(selectedTeamTask.criticalScore),
+            backgroundColor: getSeverityBg(selectedTeamTask.criticalScore),
+            padding:         '3px 10px',
+            borderRadius:    theme.radiusFull,
+            flexShrink:      0,
+          }}>
+            ⚡ {selectedTeamTask.criticalScore}/10
+          </span>
+        </div>
+
+        {/* Capacity bar */}
+        {selectedTeamTask.requiredVolunteers && (
+          <div style={{ marginBottom: '18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '600', color: theme.textSecondary }}>
+                Team capacity
+              </span>
+              <span style={{
+                fontSize:        '12px',
+                fontWeight:      '700',
+                color:           selectedTeamTask.volunteerTeam.length >= selectedTeamTask.requiredVolunteers
+                  ? theme.success : theme.warning,
+              }}>
+                {selectedTeamTask.volunteerTeam.length} / {selectedTeamTask.requiredVolunteers}
+              </span>
+            </div>
+            <div style={{ height: '6px', backgroundColor: theme.borderLight, borderRadius: theme.radiusFull, overflow: 'hidden' }}>
+              <div style={{
+                height:          '100%',
+                width:           `${Math.min(100, (selectedTeamTask.volunteerTeam.length / selectedTeamTask.requiredVolunteers) * 100)}%`,
+                backgroundColor: selectedTeamTask.volunteerTeam.length >= selectedTeamTask.requiredVolunteers
+                  ? theme.success : theme.warning,
+                borderRadius:    theme.radiusFull,
+                transition:      'width 0.4s ease',
+              }} />
+            </div>
+          </div>
+        )}
+
+        {/* Member list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {selectedTeamTask.volunteerTeam.map((uid, idx) => (
+            <div
+              key={uid}
+              style={{
+                display:    'flex',
+                alignItems: 'center',
+                gap:        '10px',
+              }}
+            >
+              <span style={{
+                width:           '22px',
+                height:          '22px',
+                borderRadius:    theme.radiusFull,
+                backgroundColor: uid === auth.currentUser?.uid ? theme.primaryBgCard : theme.primaryBg,
+                border:          `1px solid ${theme.primaryBorder}`,
+                display:         'flex',
+                alignItems:      'center',
+                justifyContent:  'center',
+                fontSize:        '11px',
+                fontWeight:      '700',
+                color:           theme.primary,
+                flexShrink:      0,
+              }}>
+                {idx + 1}
+              </span>
+              <div style={{ flex: 1 }}>
+                <VolunteerMiniProfile uid={uid} />
+              </div>
+              {uid === auth.currentUser?.uid && (
+                <span style={{
+                  fontSize:        '11px',
+                  fontWeight:      '700',
+                  color:           theme.primary,
+                  backgroundColor: theme.primaryBg,
+                  border:          `1px solid ${theme.primaryBorder}`,
+                  borderRadius:    theme.radiusFull,
+                  padding:         '2px 8px',
+                  flexShrink:      0,
+                }}>
+                  You
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  </div>
+)}
+ 
+        {/* ── Tab: Create Request ──────────────────────────────────────────── */}
+        {activeTab === 'create' && (
+          <div>
+            <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: theme.textSecondary, lineHeight: 1.6 }}>
+              Need additional resources? Submit a request to alert the full network.
+            </p>
+            <CreateRequest />
+          </div>
+        )}
+ 
+        {/* ── Tab: History ─────────────────────────────────────────────────── */}
+        {activeTab === 'history' && (
+          <div>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '17px', fontWeight: '700', color: theme.textPrimary }}>
+              Completed & Pending Admin Approval
+            </h3>
+            {completedTasks.length === 0 ? (
+              <div style={{
+                textAlign:       'center',
+                padding:         '60px 24px',
+                backgroundColor: theme.primaryBg,
+                borderRadius:    theme.radiusLg,
+                border:          `1px solid ${theme.border}`,
+              }}>
+                <div style={{ fontSize: '40px', marginBottom: '12px' }}>📭</div>
+                <p style={{ margin: 0, color: theme.textSecondary, fontWeight: '500' }}>
+                  No completed tasks yet.
+                </p>
+              </div>
+            ) : completedTasks.map(task => (
+              <div key={task.id} style={{
+                border:          `1px solid ${theme.border}`,
+                borderLeft:      `5px solid ${getStatusColor(task.status)}`,
+                borderRadius:    theme.radiusLg,
+                padding:         '20px',
+                marginBottom:    '14px',
+                backgroundColor: 'white',
+                opacity:         0.85,
+                boxShadow:       theme.shadow,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{
+                    fontSize:        '12px',
+                    fontWeight:      '700',
+                    color:           getStatusColor(task.status),
+                    backgroundColor: task.status === 'resolved' ? '#F3F4F6' : '#FEF3C7',
+                    padding:         '4px 12px',
+                    borderRadius:    theme.radiusFull,
+                    textTransform:   'capitalize',
+                  }}>
+                    {getStatusLabel(task.status)}
+                  </span>
+                  <span style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '600' }}>
+                    Severity: {task.criticalScore}/10
+                  </span>
+                </div>
+ 
+                {task.createdAt && (
+                  <div style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '8px' }}>
+                    📅 {typeof task.createdAt === 'string' ? task.createdAt : new Date(task.createdAt).toLocaleString()}
+                  </div>
+                )}
+ 
+                <p style={{ margin: '0 0 10px 0', fontSize: '14px', color: theme.textPrimary, lineHeight: 1.5 }}>
+                  {task.description}
+                </p>
+ 
+                {task.affectedCount && (
+                  <div style={{ fontSize: '13px', color: theme.textMuted }}>👥 {task.affectedCount} people affected</div>
+                )}
+ 
+                {task.needSkill?.length > 0 && (
+                  <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {task.needSkill.map((sk, i) => (
+                      <span key={i} style={{ ...styles.skillBadge, opacity: 0.7 }}>{sk}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+ 
+      {/* ── Base Location Modal ──────────────────────────────────────────────── */}
+      {showLocationModal && (
+        <div style={{
+          position:        'fixed',
+          top:             0,
+          left:            0,
+          width:           '100%',
+          height:          '100%',
+          backgroundColor: theme.bgOverlay,
+          display:         'flex',
+          justifyContent:  'center',
+          alignItems:      'center',
+          zIndex:          1000,
+          padding:         '20px',
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius:    theme.radiusXl,
+            width:           '100%',
+            maxWidth:        '600px',
+            boxShadow:       theme.shadowLg,
+            overflow:        'hidden',
+          }}>
+            {/* Modal header */}
+            <div style={{
+              background:  `linear-gradient(135deg, ${theme.primaryDark}, ${theme.primary})`,
+              color:       'white',
+              padding:     '24px 28px',
+            }}>
+              <div style={{ fontSize: '28px', marginBottom: '8px' }}>🌿</div>
+              <h2 style={{ margin: '0 0 6px 0', fontSize: '20px', fontWeight: '800' }}>
+                Welcome to the Team!
+              </h2>
+              <p style={{ margin: 0, fontSize: '14px', opacity: 0.9 }}>
+                You've been promoted to Volunteer. Your assigned skills:{' '}
+                <strong>{skills.length > 0 ? skills.join(', ') : 'General Help'}</strong>
+              </p>
+            </div>
+ 
+            {/* Modal body */}
+            <div style={{ padding: '24px 28px' }}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '700', color: theme.textPrimary }}>
+                Set Your Base Operating Area
+              </h3>
+              <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: theme.textSecondary, lineHeight: 1.6 }}>
+                We need your central location so the AI can assign you to nearby crises.{' '}
+                <strong>This cannot be easily changed later.</strong>
+              </p>
+ 
+              <button
+                onClick={handleAutoDetect}
+                style={{
+                  ...styles.btnPrimary,
+                  padding:    '13px',
+                  fontSize:   '15px',
+                  marginBottom: '12px',
+                  background: `linear-gradient(135deg, ${theme.primary}, ${theme.primaryLight})`,
+                }}
+              >
+                📍 Auto-Detect My Location
+              </button>
+ 
+              {locationStatusMsg && (
+                <p style={{ color: theme.danger, fontWeight: '600', fontSize: '13px', margin: '0 0 12px 0' }}>
+                  {locationStatusMsg}
+                </p>
+              )}
+ 
+              {tempLocation && (
+                <div style={{ marginBottom: '16px' }}>
+                  <Wrapper apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
+                    <LocationPickerMap location={tempLocation} setLocation={setTempLocation} />
+                  </Wrapper>
+                  <p style={{ fontSize: '12px', color: theme.textMuted, textAlign: 'center', marginTop: '6px' }}>
+                    📌 {tempLocation.lat.toFixed(5)}, {tempLocation.lng.toFixed(5)}
+                  </p>
+                </div>
+              )}
+ 
+              <button
+                onClick={handleSaveLocation}
+                disabled={!tempLocation || isSavingLocation}
+                style={{
+                  ...styles.btnSuccess,
+                  width:   '100%',
+                  padding: '13px',
+                  fontSize: '15px',
+                  opacity: (!tempLocation || isSavingLocation) ? 0.5 : 1,
+                  cursor:  (!tempLocation || isSavingLocation) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSavingLocation ? 'Saving…' : '🔒 Confirm & Lock Base Location'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+ 
 export default VolunteerDashboard;
