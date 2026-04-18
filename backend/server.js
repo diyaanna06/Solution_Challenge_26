@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import './config/firebase.js'; 
 
-import requestRoutes from './routes/requestRoutes.js'; // <-- Add this import
+import requestRoutes from './routes/requestRoutes.js';
 
 const app = express();
 

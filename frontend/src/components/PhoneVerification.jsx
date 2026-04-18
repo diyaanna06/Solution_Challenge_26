@@ -21,7 +21,7 @@ const PhoneVerification = () => {
           size: 'invisible',
           callback: () => {},
           'expired-callback': () => {
-  toast.warning('reCAPTCHA expired. Please refresh and try again.'); // ⚠️ warning
+  toast.warning('reCAPTCHA expired. Please refresh and try again.'); 
 }
         });
         window.recaptchaVerifier.render().catch(console.error);
@@ -44,11 +44,11 @@ const PhoneVerification = () => {
 
 const sendOtp = async () => {
   if (!phoneNumber.startsWith('+')) {
-    toast.warning('Please include your country code (e.g. +91 or +1).'); // ⚠️ warning
+    toast.warning('Please include your country code (e.g. +91 or +1).'); 
     return;
   }
   setIsChecking(true);
-  const loadingToast = toast.loading('Checking phone number…');           // ⏳ loading
+  const loadingToast = toast.loading('Checking phone number…');           
 
   const strictPhone = formatPhoneStrict(phoneNumber);
   try {
@@ -57,7 +57,7 @@ const sendOtp = async () => {
     if (!snap.empty) {
       toast.update(loadingToast, {
         render:    'This phone number is already registered to another account.',
-        type:      'error',                                               // ❌ error
+        type:      'error',                                              
         isLoading: false,
         autoClose: 4000,
       });
@@ -69,7 +69,7 @@ const sendOtp = async () => {
     const vId = await new PhoneAuthProvider(auth).verifyPhoneNumber(strictPhone, window.recaptchaVerifier);
     setVerificationId(vId);
     toast.update(loadingToast, {
-      render:    'OTP sent! Check your messages.',                        // ✅ success
+      render:    'OTP sent! Check your messages.',                        
       type:      'success',
       isLoading: false,
       autoClose: 4000,
@@ -77,7 +77,7 @@ const sendOtp = async () => {
   } catch (error) {
     console.error(error);
     toast.update(loadingToast, {
-      render:    'Failed to send OTP. Please refresh and try again.',     // ❌ error
+      render:    'Failed to send OTP. Please refresh and try again.',    
       type:      'error',
       isLoading: false,
       autoClose: 4000,
@@ -89,7 +89,7 @@ const sendOtp = async () => {
 
 const verifyOtpAndLink = async () => {
   setIsChecking(true);
-  const loadingToast = toast.loading('Verifying OTP…');                  // ⏳ loading
+  const loadingToast = toast.loading('Verifying OTP…');                 
   const strictPhone = formatPhoneStrict(phoneNumber);
   try {
     const credential = PhoneAuthProvider.credential(verificationId, otp);
@@ -99,7 +99,7 @@ const verifyOtpAndLink = async () => {
       phoneVerified: true,
     });
     toast.update(loadingToast, {
-      render:    'Phone verified successfully! Redirecting…',             // ✅ success
+      render:    'Phone verified successfully! Redirecting…',             
       type:      'success',
       isLoading: false,
       autoClose: 3000,
@@ -108,7 +108,7 @@ const verifyOtpAndLink = async () => {
   } catch (error) {
     console.error(error);
     toast.update(loadingToast, {
-      render:    'Verification failed. Check the code and try again.',    // ❌ error
+      render:    'Verification failed. Check the code and try again.',   
       type:      'error',
       isLoading: false,
       autoClose: 4000,

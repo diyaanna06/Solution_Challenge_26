@@ -60,10 +60,7 @@ const Navbar = ({ user, userData, onLogout }) => {
           padding:     0,
         }}
       >
-        <span style={{ fontSize: '24px' }}>🌿</span>
-        <span style={{ fontWeight: '800', fontSize: '17px', letterSpacing: '-0.3px' }}>
-          Disaster Relief Network
-        </span>
+        <img src="main2.svg" alt="..." style={{width:'200px'}}/>
       </button>
  
       {/* Right side */}
@@ -295,9 +292,7 @@ function App() {
         textAlign: 'center',
         fontSize: '13px',
       }}>
-        <div style={{ marginBottom: '6px', color: 'white', fontWeight: '700', fontSize: '15px' }}>
-          🌿 Disaster Relief Network
-        </div>
+        <img src="main2.svg" alt="..." style={{width:'300px'}}/>
         <div style={{ marginBottom:'20px'}}>Connecting communities with compassion and technology · India</div>
          <div style={{ display:'flex', gap:'24px', justifyContent:'center', flexWrap:'wrap' }}>
           {['Powered by Gemini AI', 'Google Maps', 'Firebase'].map((t, i) => (

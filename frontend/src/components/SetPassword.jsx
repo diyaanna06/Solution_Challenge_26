@@ -16,13 +16,13 @@ const [email, setEmail] = useState('');
   setLoading(true);
   try {
     await sendPasswordResetEmail(auth, email);
-    toast.success('Setup link sent! Check your inbox.');              // ✅ success
+    toast.success('Setup link sent! Check your inbox.');              
     setEmail('');
   } catch (err) {
     console.error(err);
-    if      (err.code === 'auth/user-not-found')  toast.error('No account found with this email address.'); // ❌
-    else if (err.code === 'auth/invalid-email')   toast.error('Please enter a valid email address.');        // ❌
-    else                                          toast.error('Failed to send setup link. Please try again.'); // ❌
+    if      (err.code === 'auth/user-not-found')  toast.error('No account found with this email address.'); 
+    else if (err.code === 'auth/invalid-email')   toast.error('Please enter a valid email address.');        
+    else                                          toast.error('Failed to send setup link. Please try again.'); 
   } finally {
     setLoading(false);
   }

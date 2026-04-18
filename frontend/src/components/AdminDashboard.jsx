@@ -106,7 +106,7 @@ const StatusBadge = ({ status }) => (
 );
  
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('issues'); // Set 'issues' as default tab
+  const [activeTab, setActiveTab] = useState('issues'); 
   const [allIssues, setAllIssues] = useState([]);
   const [pendingTasks, setPendingTasks] = useState([]);
   const [standardUsers, setStandardUsers] = useState([]);
@@ -189,10 +189,10 @@ const handleApprove = async (taskId) => {
     });
     setPendingTasks(prev => prev.filter(t => t.id !== taskId));
     fetchAllIssues();
-    toast.success('Resolution approved successfully!');        // ✅ success
+    toast.success('Resolution approved successfully!');       
   } catch (error) {
     console.error(error);
-    toast.error('Failed to approve resolution. Try again.');   // ❌ error
+    toast.error('Failed to approve resolution. Try again.'); 
   } finally {
     setActionLoading(null);
   }
@@ -202,7 +202,7 @@ const handleReject = async (taskId) => {
   const reason = window.prompt("Reason for rejection?");
   if (reason === null) return;
   if (!reason.trim()) {
-    toast.warning('Please provide a rejection reason.');        // ⚠️ warning
+    toast.warning('Please provide a rejection reason.');       
     return;
   }
 
@@ -215,10 +215,10 @@ const handleReject = async (taskId) => {
     });
     setPendingTasks(prev => prev.filter(t => t.id !== taskId));
     fetchAllIssues();
-    toast.info('Resolution rejected and sent back to active.'); // ℹ️ info
+    toast.info('Resolution rejected and sent back to active.');
   } catch (error) {
     console.error(error);
-    toast.error('Failed to reject resolution. Try again.');     // ❌ error
+    toast.error('Failed to reject resolution. Try again.');   
   } finally {
     setActionLoading(null);
   }
@@ -230,7 +230,7 @@ const handleReject = async (taskId) => {
 
 const handlePromoteToVolunteer = async (userObj) => {
   if (!userObj.phoneVerified) {
-    toast.warning(                                              // ⚠️ warning
+    toast.warning(                                        
       '⚠️ This user has not verified their phone number. Phone verification is required before promotion.'
     );
     return;
@@ -240,7 +240,7 @@ const handlePromoteToVolunteer = async (userObj) => {
   const skillsString = promotionData[uid];
 
   if (!skillsString?.trim()) {
-    toast.warning('Please enter at least one skill before promoting.'); // ⚠️ warning
+    toast.warning('Please enter at least one skill before promoting.'); 
     return;
   }
 
@@ -252,10 +252,10 @@ const handlePromoteToVolunteer = async (userObj) => {
     const updatedUser = { ...userObj, role: 'volunteer', skills: skillsArray };
     setStandardUsers(prev => prev.filter(u => u.id !== uid));
     setVolunteers(prev => [updatedUser, ...prev]);
-    toast.success(`${userObj.name || 'User'} promoted to Volunteer!`); // ✅ success
+    toast.success(`${userObj.name || 'User'} promoted to Volunteer!`);
   } catch (error) {
     console.error(error);
-    toast.error('Failed to promote user. Please try again.');            // ❌ error
+    toast.error('Failed to promote user. Please try again.');
   } finally {
     setActionLoading(null);
   }

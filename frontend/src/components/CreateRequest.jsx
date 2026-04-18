@@ -56,17 +56,17 @@ const CreateRequest = () => {
   const [loading,     setLoading]     = useState(false);
  const handleGetLocation = () => {
   if (!navigator.geolocation) {
-    toast.warning('Geolocation is not supported by your browser.'); // ⚠️ warning
+    toast.warning('Geolocation is not supported by your browser.'); 
     return;
   }
   navigator.geolocation.getCurrentPosition(
     (position) => {
       setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-      toast.success('Location detected successfully!');              // ✅ success
+      toast.success('Location detected successfully!');             
     },
     (error) => {
       console.error(error);
-      toast.error('Unable to retrieve location. Select it manually on the map.'); // ❌ error
+      toast.error('Unable to retrieve location. Select it manually on the map.'); 
     },
     { enableHighAccuracy: true }
   );
@@ -88,21 +88,21 @@ const handleSubmit = async (e) => {
   const user = auth.currentUser;
 
   if (!user) {
-    toast.warning('You must be logged in to submit a request.');   // ⚠️ warning
+    toast.warning('You must be logged in to submit a request.');   
     return;
   }
   if (!location) {
-    toast.warning('Please provide the location for this request.'); // ⚠️ warning
+    toast.warning('Please provide the location for this request.');
     return;
   }
 
   setLoading(true);
-  const uploadingToast = toast.loading('Uploading images…');        // ⏳ loading
+  const uploadingToast = toast.loading('Uploading images…');       
 
   try {
     const imageUrls = await uploadImages();
     toast.update(uploadingToast, {
-      render: 'Analysing data and finding volunteers…',             // ⏳ update
+      render: 'Analysing data and finding volunteers…',            
       type:   'info',
       isLoading: true,
     });
@@ -111,7 +111,7 @@ const handleSubmit = async (e) => {
     await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/requests/create`, payload);
 
     toast.update(uploadingToast, {
-      render:    'Request created! Help is on the way. 🚀',         // ✅ final update
+      render:    'Request created! Help is on the way. 🚀',       
       type:      'success',
       isLoading: false,
       autoClose: 5000,
@@ -123,7 +123,7 @@ const handleSubmit = async (e) => {
   } catch (error) {
     console.error(error);
     toast.update(uploadingToast, {
-      render:    'Failed to create request. Please try again.',     // ❌ final update
+      render:    'Failed to create request. Please try again.',   
       type:      'error',
       isLoading: false,
       autoClose: 4000,

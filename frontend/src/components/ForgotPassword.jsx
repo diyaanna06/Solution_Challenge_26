@@ -14,11 +14,11 @@ const handleResetPassword = async (e) => {
   e.preventDefault();
   try {
     await sendPasswordResetEmail(auth, email);
-    toast.success('Password reset email sent! Check your inbox.'); // ✅ success
+    toast.success('Password reset email sent! Check your inbox.');  
     setEmail('');
   } catch (err) {
     console.error(err);
-    toast.error(err.message);                                       // ❌ error
+    toast.error(err.message);                                      
   }
 };
 

@@ -103,7 +103,7 @@ export const createRequest = async (req, res) => {
       const teamPrompt = `
         We need ${requiredLimit} volunteers for a task requiring these skills: ${analysisData.needSkill.join(', ')}.
         Select the best ${requiredLimit} volunteers from this JSON list. 
-        CRITICAL INSTRUCTION: You MUST return the exact 'uid' value (e.g., 'SZOipzCK6JShJbb9nY...') from the JSON objects. Do NOT rename them to 'volunteer_0' or 'volunteer_1'.
+        CRITICAL INSTRUCTION: You MUST return the exact 'uid' value (e.g., 'SZOipzCK6JShJbb9nY...') from the JSON objects. Do NOT rename them to 'volunteer_0.
         Prioritize matching skills, FEWEST ongoingTasksCount, and HIGHEST completedTasksCount.
         Volunteers List: ${JSON.stringify(nearbyVolunteers)}
       `;

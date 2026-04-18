@@ -23,14 +23,14 @@ const handleAuth = async (e) => {
   try {
     if (isRegistering) {
       await createUserWithEmailAndPassword(auth, email, password);
-      toast.success('Account created! Welcome aboard.');            // ✅ success
+      toast.success('Account created! Welcome aboard.');           
     } else {
       await signInWithEmailAndPassword(auth, email, password);
-      toast.success('Logged in successfully!');                     // ✅ success
+      toast.success('Logged in successfully!');                    
     }
   } catch (err) {
     console.error(err);
-    toast.error(err.message);                                        // ❌ error
+    toast.error(err.message);                                       
   }
 };
 
@@ -38,10 +38,10 @@ const handleGoogleLogin = async () => {
   const provider = new GoogleAuthProvider();
   try {
     await signInWithPopup(auth, provider);
-    toast.success('Signed in with Google!');                        // ✅ success
+    toast.success('Signed in with Google!');                       
   } catch (err) {
     console.error(err);
-    toast.error(err.message);                                        // ❌ error
+    toast.error(err.message);                                       
   }
 };
 

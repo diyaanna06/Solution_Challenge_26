@@ -25,12 +25,12 @@ const SubmitResolution = ({ task, onCancel, onSuccess }) => {
 const handleSubmit = async (e) => {
   e.preventDefault();
   if (images.length === 0) {
-    toast.warning('Please upload at least one image as proof of resolution.'); // ⚠️ warning
+    toast.warning('Please upload at least one image as proof of resolution.');
     return;
   }
 
   setLoading(true);
-  const loadingToast = toast.loading('Uploading proof images…');               // ⏳ loading
+  const loadingToast = toast.loading('Uploading proof images…');             
 
   try {
     const user = auth.currentUser;
@@ -45,7 +45,7 @@ const handleSubmit = async (e) => {
       },
     });
     toast.update(loadingToast, {
-      render:    'Resolution submitted for admin review!',                      // ✅ success
+      render:    'Resolution submitted for admin review!',                
       type:      'success',
       isLoading: false,
       autoClose: 4000,
@@ -54,7 +54,7 @@ const handleSubmit = async (e) => {
   } catch (err) {
     console.error(err);
     toast.update(loadingToast, {
-      render:    'Failed to submit proof. Please try again.',                   // ❌ error
+      render:    'Failed to submit proof. Please try again.',               
       type:      'error',
       isLoading: false,
       autoClose: 4000,

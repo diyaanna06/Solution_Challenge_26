@@ -138,13 +138,13 @@ useEffect(() => {
       invitedVolunteers: arrayRemove(user.uid),
       volunteerTeam:     arrayUnion(user.uid),
     });
-    toast.success('You have joined the team!');                // ✅ success
+    toast.success('You have joined the team!');              
     fetchPendingInvites();
     fetchAssignedTasks();
     if (workLocation) fetchNearbyTasks(workLocation);
   } catch (error) {
     console.error(error);
-    toast.error('Failed to accept invite. Please try again.'); // ❌ error
+    toast.error('Failed to accept invite. Please try again.');
   }
 };
 
@@ -153,11 +153,11 @@ const handleDeclineInvite = async (request) => {
     await updateDoc(doc(db, 'requests', request.id), {
       invitedVolunteers: arrayRemove(user.uid),
     });
-    toast.info('Invite declined.');                            // ℹ️ info
+    toast.info('Invite declined.');                           
     fetchPendingInvites();
   } catch (error) {
     console.error(error);
-    toast.error('Failed to decline invite.');                  // ❌ error
+    toast.error('Failed to decline invite.');                 
   }
 };
 
@@ -170,12 +170,12 @@ const handleJoinTeam = async (request, e) => {
     await updateDoc(doc(db, 'requests', request.id), {
       volunteerTeam: arrayUnion(user.uid),
     });
-    toast.success('You have successfully joined the team!');   // ✅ success
+    toast.success('You have successfully joined the team!'); 
     fetchAssignedTasks();
     if (workLocation) fetchNearbyTasks(workLocation);
   } catch (error) {
     console.error(error);
-    toast.error('Failed to join the team. Please try again.'); // ❌ error
+    toast.error('Failed to join the team. Please try again.');
   }
 };
 
@@ -252,19 +252,19 @@ const handleJoinTeam = async (request, e) => {
 
 const handleAutoDetect = () => {
   if (!navigator.geolocation) {
-    toast.warning('Geolocation is not supported by your browser.'); // ⚠️ warning
+    toast.warning('Geolocation is not supported by your browser.'); 
     return;
   }
-  toast.info('Detecting your location…');                           // ℹ️ info
+  toast.info('Detecting your location…');                          
   navigator.geolocation.getCurrentPosition(
     (position) => {
       setTempLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-      toast.success('Location captured! Drag the pin to refine if needed.'); // ✅ success
+      toast.success('Location captured! Drag the pin to refine if needed.'); 
       setLocationStatusMsg('');
     },
     (error) => {
       console.error(error);
-      toast.error('Could not auto-detect location. Drag the pin manually.'); // ❌ error
+      toast.error('Could not auto-detect location. Drag the pin manually.');
     },
     { enableHighAccuracy: true }
   );
@@ -279,10 +279,10 @@ const handleSaveLocation = async () => {
     setMapCenter(tempLocation);
     fetchNearbyTasks(tempLocation);
     setShowLocationModal(false);
-    toast.success('Work location saved!');                      // ✅ success
+    toast.success('Work location saved!');                    
   } catch (error) {
     console.error(error);
-    toast.error('Failed to save location. Please try again.'); // ❌ error
+    toast.error('Failed to save location. Please try again.');
   } finally {
     setIsSavingLocation(false);
   }
