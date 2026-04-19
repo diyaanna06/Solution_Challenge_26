@@ -115,6 +115,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const [selectedTeamTask, setSelectedTeamTask] = useState(null);
+    const [openImages, setOpenImages] = useState(null);
 
   
   const [promotionData, setPromotionData] = useState({});
@@ -196,6 +197,33 @@ const handleApprove = async (taskId) => {
   } finally {
     setActionLoading(null);
   }
+};
+
+const formatDate = (value) => {
+  if (!value) return '';
+  if (typeof value === 'object' && value.seconds) {
+    return new Date(value.seconds * 1000).toLocaleString();
+  }
+
+  if (value instanceof Date) {
+    return value.toLocaleString();
+  }
+
+  if (typeof value === 'number') {
+    return new Date(
+      value < 1e12 ? value * 1000 : value 
+    ).toLocaleString();
+  }
+  if (typeof value === 'string') {
+    const cleaned = value
+      .replace(' at ', ' ')
+      .replace('UTC', '');
+
+    const d = new Date(cleaned);
+    return isNaN(d) ? value : d.toLocaleString();
+  }
+
+  return '';
 };
 
 const handleReject = async (taskId) => {
@@ -298,103 +326,265 @@ const handlePromoteToVolunteer = async (userObj) => {
       {/* ── Tab: All Issues + Map ─────────────────────────────────────────── */}
       {activeTab === 'issues' && (
   <div style={{ display: 'flex', gap: '20px', height: '680px' }}>
+{/* Issue list */}
+<div style={{
+  width:           '380px',
+  flexShrink:      0,
+  overflowY:       'auto',
+  border:          `1px solid ${theme.border}`,
+  borderRadius:    theme.radiusLg,
+  padding:         '16px',
+  backgroundColor: theme.primaryBg,
+}}>
+  <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: '700', color: theme.textPrimary }}>
+    All Recorded Requests
+  </h3>
 
-    {/* Issue list */}
-    <div style={{
-      width:           '380px',
-      flexShrink:      0,
-      overflowY:       'auto',
-      border:          `1px solid ${theme.border}`,
-      borderRadius:    theme.radiusLg,
-      padding:         '16px',
-      backgroundColor: theme.primaryBg,
-    }}>
-      <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: '700', color: theme.textPrimary }}>
-        All Recorded Requests
-      </h3>
+  {allIssues.length === 0 ? (
+    <div style={{ textAlign: 'center', padding: '40px 0', color: theme.textMuted }}>
+      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📭</div>
+      No issues reported yet.
+    </div>
+  ) : allIssues.map(issue => (
+    <div
+      key={issue.id}
+      onClick={() => {
+        if (issue.location) {
+          setSelectedIssueLocation(issue.location);
+          setSelectedIssueId(issue.id);
+        }
+      }}
+      style={{
+        border:          `1px solid ${theme.border}`,
+        borderLeft:      `4px solid ${getStatusColor(issue.status)}`,
+        padding:         '14px',
+        marginBottom:    '10px',
+        borderRadius:    theme.radiusMd,
+        backgroundColor: selectedIssueId === issue.id ? theme.primaryBgCard : 'white',
+        cursor:          issue.location ? 'pointer' : 'default',
+        boxShadow:       selectedIssueId === issue.id ? theme.shadowMd : theme.shadow,
+        transition:      'box-shadow 0.15s',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <StatusBadge status={issue.status} />
+        <SeverityBadge score={issue.criticalScore} />
+      </div>
 
-      {allIssues.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: theme.textMuted }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>📭</div>
-          No issues reported yet.
-        </div>
-      ) : allIssues.map(issue => (
-        <div
-          key={issue.id}
-          onClick={() => {
-            if (issue.location) {
-              setSelectedIssueLocation(issue.location);
-              setSelectedIssueId(issue.id);
-            }
+      <p style={{ margin: '0 0 10px 0', fontSize: '14px', color: theme.textPrimary, lineHeight: 1.4 }}>
+        {issue.description}
+      </p>
+
+      {/* ── Image button ── */}
+      {issue.images?.length > 0 && (
+        <button
+          onClick={e => { e.stopPropagation(); setOpenImages(issue.images); }}
+          style={{
+            display:         'inline-flex',
+            alignItems:      'center',
+            justifyContent:  'center',
+            gap:             '7px',
+            width:           '100%',
+            marginBottom:    '10px',
+            padding:         '7px 14px',
+            borderRadius:    theme.radiusMd,
+            border:          `1px solid ${theme.primaryBorder}`,
+            background:      theme.primaryBg,
+            color:           theme.primary,
+            cursor:          'pointer',
+            fontSize:        '12px',
+            fontWeight:      '600',
+            transition:      'background 0.15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = theme.primaryBorder}
+          onMouseLeave={e => e.currentTarget.style.background = theme.primaryBg}
+        >
+          🖼️ View Images
+          <span style={{
+            backgroundColor: theme.primary,
+            color:           'white',
+            borderRadius:    theme.radiusFull,
+            fontSize:        '10px',
+            fontWeight:      '700',
+            padding:         '1px 7px',
+            lineHeight:      '17px',
+          }}>
+            {issue.images.length}
+          </span>
+        </button>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: theme.textMuted }}>
+        <span>
+          {issue.createdAt ? formatDate(issue.createdAt) : '-'}
+        </span>
+
+        {/* ── Clickable Team badge ── */}
+        <span
+          onClick={e => {
+            e.stopPropagation();
+            setSelectedTeamTask(issue);
           }}
           style={{
-            border:          `1px solid ${theme.border}`,
-            borderLeft:      `4px solid ${getStatusColor(issue.status)}`,
-            padding:         '14px',
-            marginBottom:    '10px',
-            borderRadius:    theme.radiusMd,
-            backgroundColor: selectedIssueId === issue.id ? theme.primaryBgCard : 'white',
-            cursor:          issue.location ? 'pointer' : 'default',
-            boxShadow:       selectedIssueId === issue.id ? theme.shadowMd : theme.shadow,
-            transition:      'box-shadow 0.15s',
+            display:         'inline-flex',
+            alignItems:      'center',
+            gap:             '5px',
+            fontSize:        '12px',
+            fontWeight:      '600',
+            color:           issue.volunteerTeam?.length > 0 ? theme.primary : theme.textMuted,
+            backgroundColor: issue.volunteerTeam?.length > 0 ? theme.primaryBg : 'transparent',
+            border:          issue.volunteerTeam?.length > 0 ? `1px solid ${theme.primaryBorder}` : '1px solid transparent',
+            borderRadius:    theme.radiusFull,
+            padding:         '3px 10px',
+            cursor:          issue.volunteerTeam?.length > 0 ? 'pointer' : 'default',
+            transition:      'background-color 0.15s, color 0.15s',
+          }}
+          onMouseEnter={e => {
+            if (issue.volunteerTeam?.length > 0) {
+              e.currentTarget.style.backgroundColor = theme.primaryBgCard;
+              e.currentTarget.style.color = theme.primaryDark;
+            }
+          }}
+          onMouseLeave={e => {
+            if (issue.volunteerTeam?.length > 0) {
+              e.currentTarget.style.backgroundColor = theme.primaryBg;
+              e.currentTarget.style.color = theme.primary;
+            }
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <StatusBadge status={issue.status} />
-            <SeverityBadge score={issue.criticalScore} />
-          </div>
-
-          <p style={{ margin: '0 0 10px 0', fontSize: '14px', color: theme.textPrimary, lineHeight: 1.4 }}>
-            {issue.description}
-          </p>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: theme.textMuted }}>
-            <span>
-              {issue.createdAt ? new Date(issue.createdAt).toLocaleDateString() : '—'}
-            </span>
-
-            {/* ── Clickable Team badge ────────────────────────────── */}
-            <span
-              onClick={e => {
-                e.stopPropagation(); // don't pan the map
-                setSelectedTeamTask(issue);
-              }}
-              style={{
-                display:         'inline-flex',
-                alignItems:      'center',
-                gap:             '5px',
-                fontSize:        '12px',
-                fontWeight:      '600',
-                color:           issue.volunteerTeam?.length > 0 ? theme.primary : theme.textMuted,
-                backgroundColor: issue.volunteerTeam?.length > 0 ? theme.primaryBg : 'transparent',
-                border:          issue.volunteerTeam?.length > 0 ? `1px solid ${theme.primaryBorder}` : '1px solid transparent',
-                borderRadius:    theme.radiusFull,
-                padding:         '3px 10px',
-                cursor:          issue.volunteerTeam?.length > 0 ? 'pointer' : 'default',
-                transition:      'background-color 0.15s, color 0.15s',
-              }}
-              onMouseEnter={e => {
-                if (issue.volunteerTeam?.length > 0) {
-                  e.currentTarget.style.backgroundColor = theme.primaryBgCard;
-                  e.currentTarget.style.color = theme.primaryDark;
-                }
-              }}
-              onMouseLeave={e => {
-                if (issue.volunteerTeam?.length > 0) {
-                  e.currentTarget.style.backgroundColor = theme.primaryBg;
-                  e.currentTarget.style.color = theme.primary;
-                }
-              }}
-            >
-              🤝 Team: {issue.volunteerTeam?.length || 0}
-              {issue.volunteerTeam?.length > 0 && (
-                <span style={{ opacity: 0.6, fontSize: '11px' }}>↗</span>
-              )}
-            </span>
-          </div>
-        </div>
-      ))}
+          🤝 Team: {issue.volunteerTeam?.length || 0}
+          {issue.volunteerTeam?.length > 0 && (
+            <span style={{ opacity: 0.6, fontSize: '11px' }}>↗</span>
+          )}
+        </span>
+      </div>
     </div>
+  ))}
+</div>
+
+{/* ── Image modal (shared, rendered once outside the list) ── */}
+{openImages && (
+  <div
+    onClick={() => setOpenImages(null)}
+    style={{
+      position:        'fixed',
+      inset:           0,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      display:         'flex',
+      justifyContent:  'center',
+      alignItems:      'center',
+      zIndex:          999,
+      padding:         '20px',
+    }}
+  >
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        background:    'white',
+        borderRadius:  theme.radiusLg,
+        width:         '100%',
+        maxWidth:      '680px',
+        maxHeight:     '85vh',
+        display:       'flex',
+        flexDirection: 'column',
+        boxShadow:     '0 20px 60px rgba(0,0,0,0.25)',
+        overflow:      'hidden',
+      }}
+    >
+      {/* Header */}
+      <div style={{
+        display:         'flex',
+        justifyContent:  'space-between',
+        alignItems:      'center',
+        padding:         '14px 20px',
+        borderBottom:    `1px solid ${theme.border}`,
+        backgroundColor: theme.primaryBg,
+        flexShrink:      0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '16px' }}>🖼️</span>
+          <span style={{ fontWeight: '700', fontSize: '15px', color: theme.textPrimary }}>
+            Request Images
+          </span>
+          <span style={{
+            backgroundColor: theme.primary,
+            color:           'white',
+            borderRadius:    theme.radiusFull,
+            fontSize:        '11px',
+            fontWeight:      '700',
+            padding:         '2px 9px',
+          }}>
+            {openImages.length}
+          </span>
+        </div>
+        <button
+          onClick={() => setOpenImages(null)}
+          style={{
+            background:     'transparent',
+            border:         `1px solid ${theme.border}`,
+            borderRadius:   theme.radiusFull,
+            width:          '30px',
+            height:         '30px',
+            cursor:         'pointer',
+            fontSize:       '16px',
+            color:          theme.textSecondary,
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            padding:        0,
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Gallery */}
+      <div style={{
+        overflowY:           'auto',
+        padding:             '16px',
+        display:             'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap:                 '12px',
+      }}>
+        {openImages.map((img, i) => (
+          <div
+            key={i}
+            style={{
+              borderRadius: theme.radiusMd,
+              overflow:     'hidden',
+              border:       `1px solid ${theme.border}`,
+              aspectRatio:  '4/3',
+              background:   theme.primaryBg,
+            }}
+          >
+            <img
+              src={img}
+              alt={`Image ${i + 1}`}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        padding:         '12px 20px',
+        borderTop:       `1px solid ${theme.border}`,
+        backgroundColor: theme.primaryBg,
+        display:         'flex',
+        justifyContent:  'flex-end',
+        flexShrink:      0,
+      }}>
+        <button
+          onClick={() => setOpenImages(null)}
+          style={{ ...styles.btnPrimary, width: 'auto', padding: '9px 24px' }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
     {/* Map */}
     <div style={{ flex: 1, borderRadius: theme.radiusLg, overflow: 'hidden', border: `1px solid ${theme.border}` }}>

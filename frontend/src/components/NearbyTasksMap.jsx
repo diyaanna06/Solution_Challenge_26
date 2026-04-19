@@ -1,11 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { Wrapper } from '@googlemaps/react-wrapper';
 
-const MapInner = ({ center, baseLocation, zoom, tasks }) => {
-  const mapRef = useRef(null);
-  const containerRef = useRef(null);
-  const markersRef = useRef([]);
+const ICON_DEFAULT  = 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
+const ICON_SELECTED = 'http://maps.google.com/mapfiles/ms/icons/green-dot.png';
+const ICON_BASE     = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
 
+const MapInner = ({ center, baseLocation, zoom, tasks, selectedTaskId }) => {
+  const mapRef       = useRef(null);
+  const containerRef = useRef(null);
+  const markersRef   = useRef([]); 
   useEffect(() => {
     if (containerRef.current && !mapRef.current) {
       mapRef.current = new window.google.maps.Map(containerRef.current, {
@@ -14,7 +17,7 @@ const MapInner = ({ center, baseLocation, zoom, tasks }) => {
         disableDefaultUI: false,
       });
     }
-  }, []); 
+  }, []);
 
   useEffect(() => {
     if (mapRef.current && center) {
@@ -23,61 +26,109 @@ const MapInner = ({ center, baseLocation, zoom, tasks }) => {
   }, [center]);
 
   useEffect(() => {
-    if (mapRef.current) {
-      // Clear old markers
-      markersRef.current.forEach(marker => marker.setMap(null));
-      markersRef.current = [];
+    if (!mapRef.current) return;
 
-      if (baseLocation) {
-        const volunteerMarker = new window.google.maps.Marker({
-          position: baseLocation,
-          map: mapRef.current,
-          icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png', 
-          title: 'Your Base Work Area',
-        });
-        markersRef.current.push(volunteerMarker);
-      }
+    markersRef.current.forEach(({ marker }) => marker.setMap(null));
+    markersRef.current = [];
 
-      tasks.forEach(task => {
-        if (task.location && task.location.lat && task.location.lng) {
-          const marker = new window.google.maps.Marker({
-            position: { lat: task.location.lat, lng: task.location.lng },
-            map: mapRef.current,
-            title: task.description,
-          });
-
-          const infoWindow = new window.google.maps.InfoWindow({
-            content: `
-              <div style="padding: 5px; max-width: 200px;">
-                <h4 style="margin: 0 0 5px 0; color: #d9534f;">Severity: ${task.criticalScore}/10</h4>
-                <p style="margin: 0; font-size: 13px;">${task.description}</p>
-                <p style="margin: 5px 0 0 0; font-size: 12px; font-weight: bold;">Needed Skills: ${task.needSkill?.join(', ')}</p>
-              </div>
-            `
-          });
-
-          marker.addListener('click', () => {
-            infoWindow.open(mapRef.current, marker);
-          });
-
-          markersRef.current.push(marker);
-        }
+    if (baseLocation) {
+      const volunteerMarker = new window.google.maps.Marker({
+        position: baseLocation,
+        map:      mapRef.current,
+        icon:     ICON_BASE,
+        title:    'Your Base Work Area',
+        zIndex:   10,
       });
+      markersRef.current.push({ id: '__base__', marker: volunteerMarker });
     }
+
+    tasks.forEach(task => {
+      if (!task.location?.lat || !task.location?.lng) return;
+
+      const isSelected = task.id === selectedTaskId;
+
+      const marker = new window.google.maps.Marker({
+        position: { lat: task.location.lat, lng: task.location.lng },
+        map:      mapRef.current,
+        title:    task.description,
+        icon:     isSelected ? ICON_SELECTED : ICON_DEFAULT,
+        zIndex:   isSelected ? 5 : 1,
+        animation: isSelected ? window.google.maps.Animation.BOUNCE : null,
+      });
+
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding:6px; max-width:220px; font-family:sans-serif;">
+            <div style="
+              display:inline-block;
+              background:#fff3cd;
+              color:#856404;
+              border:1px solid #ffc107;
+              border-radius:20px;
+              padding:2px 10px;
+              font-size:12px;
+              font-weight:700;
+              margin-bottom:6px;
+            ">⚡ Severity ${task.criticalScore}/10</div>
+            <p style="margin:0 0 6px 0; font-size:13px; color:#111; line-height:1.4;">
+              ${task.description}
+            </p>
+            ${task.needSkill?.length
+              ? `<p style="margin:0; font-size:12px; color:#555;">
+                   <strong>Skills:</strong> ${task.needSkill.join(', ')}
+                 </p>`
+              : ''}
+          </div>
+        `,
+      });
+
+      marker.addListener('click', () => {
+        infoWindow.open(mapRef.current, marker);
+      });
+
+      markersRef.current.push({ id: task.id, marker });
+    });
   }, [tasks, baseLocation]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: '500px', borderRadius: '8px', border: '1px solid #ccc' }} />;
+  useEffect(() => {
+    markersRef.current.forEach(({ id, marker }) => {
+      if (id === '__base__') return;
+      const isSelected = id === selectedTaskId;
+      marker.setIcon(isSelected ? ICON_SELECTED : ICON_DEFAULT);
+      marker.setZIndex(isSelected ? 5 : 1);
+      marker.setAnimation(
+        isSelected ? window.google.maps.Animation.BOUNCE : null
+      );
+    });
+  }, [selectedTaskId]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width:        '100%',
+        height:       '100%',
+        minHeight:    '500px',
+        borderRadius: '8px',
+      }}
+    />
+  );
 };
 
-const NearbyTasksMap = ({ center, baseLocation, tasks }) => {
+const NearbyTasksMap = ({ center, baseLocation, tasks, selectedTaskId }) => {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-  if (!apiKey) return <div style={{ padding: '20px', color: 'red' }}>Error: Google Maps API key is missing in .env</div>;
+  if (!apiKey)      return <div style={{ padding: '20px', color: 'red' }}>Error: Google Maps API key is missing in .env</div>;
   if (!baseLocation) return <div>Please set your work location to view the map.</div>;
 
   return (
     <Wrapper apiKey={apiKey}>
-      <MapInner center={center} baseLocation={baseLocation} zoom={12} tasks={tasks} />
+      <MapInner
+        center={center}
+        baseLocation={baseLocation}
+        zoom={12}
+        tasks={tasks}
+        selectedTaskId={selectedTaskId}
+      />
     </Wrapper>
   );
 };

@@ -26,6 +26,32 @@ const TabBtn = ({ label, active, onClick }) => (
     {label}
   </button>
 );
+const formatDate = (value) => {
+  if (!value) return '';
+  if (typeof value === 'object' && value.seconds) {
+    return new Date(value.seconds * 1000).toLocaleString();
+  }
+
+  if (value instanceof Date) {
+    return value.toLocaleString();
+  }
+
+  if (typeof value === 'number') {
+    return new Date(
+      value < 1e12 ? value * 1000 : value // detect seconds vs ms
+    ).toLocaleString();
+  }
+  if (typeof value === 'string') {
+    const cleaned = value
+      .replace(' at ', ' ')
+      .replace('UTC', '');
+
+    const d = new Date(cleaned);
+    return isNaN(d) ? value : d.toLocaleString();
+  }
+
+  return '';
+};
  
 const UserDashboard = ({ userData, setUserData }) => {
   const navigate = useNavigate();
@@ -33,6 +59,7 @@ const UserDashboard = ({ userData, setUserData }) => {
    const [activeTab, setActiveTab] = useState('create');
   const [myRequests, setMyRequests] = useState([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const [openImages, setOpenImages] = useState(null);
 
 const fetchMyRequests = async () => {
   setLoadingRequests(true);
@@ -234,10 +261,10 @@ const fetchMyRequests = async () => {
 
         {/* Date */}
         {req.createdAt && (
-          <div style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '10px' }}>
-            📅 {typeof req.createdAt === 'string' ? req.createdAt : new Date(req.createdAt).toLocaleString()}
-          </div>
-        )}
+  <div style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '10px' }}>
+    📅 {formatDate(req.createdAt)}
+  </div>
+)}
 
         {/* Description */}
         <p style={{ margin: '0 0 16px 0', fontSize: '15px', color: theme.textPrimary, lineHeight: 1.55 }}>
@@ -279,6 +306,176 @@ const fetchMyRequests = async () => {
             </div>
           )}
         </div>
+       {req.images?.length > 0 && (
+  <button
+    onClick={() => setOpenImages(req.images)}
+    style={{
+      display:         'inline-flex',
+      alignItems:      'center',
+      gap:             '7px',
+      marginTop:       '10px',
+      marginBottom:    '20px',
+      padding:         '8px 16px',
+      borderRadius:    theme.radiusMd,
+      border:          `1px solid ${theme.primaryBorder}`,
+      background:      theme.primaryBg,
+      color:           theme.primary,
+      cursor:          'pointer',
+      fontSize:        '13px',
+      fontWeight:      '600',
+      transition:      'background 0.15s',
+    }}
+    onMouseEnter={e => e.currentTarget.style.background = theme.primaryBorder}
+    onMouseLeave={e => e.currentTarget.style.background = theme.primaryBg}
+  >
+    🖼️
+    <span>View Images</span>
+    <span style={{
+      backgroundColor: theme.primary,
+      color:           'white',
+      borderRadius:    theme.radiusFull,
+      fontSize:        '11px',
+      fontWeight:      '700',
+      padding:         '1px 8px',
+      lineHeight:      '18px',
+    }}>
+      {req.images.length}
+    </span>
+  </button>
+)}
+
+{openImages && (
+  <div
+    onClick={() => setOpenImages(null)}
+    style={{
+      position:        'fixed',
+      inset:           0,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      display:         'flex',
+      justifyContent:  'center',
+      alignItems:      'center',
+      zIndex:          999,
+      padding:         '20px',
+    }}
+  >
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        background:    'white',
+        borderRadius:  theme.radiusLg,
+        width:         '100%',
+        maxWidth:      '680px',
+        maxHeight:     '85vh',
+        display:       'flex',
+        flexDirection: 'column',
+        boxShadow:     '0 20px 60px rgba(0,0,0,0.25)',
+        overflow:      'hidden',
+      }}
+    >
+      {/* ── Modal Header ── */}
+      <div style={{
+        display:        'flex',
+        justifyContent: 'space-between',
+        alignItems:     'center',
+        padding:        '14px 20px',
+        borderBottom:   `1px solid ${theme.border}`,
+        backgroundColor: theme.primaryBg,
+        flexShrink:     0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '16px' }}>🖼️</span>
+          <span style={{ fontWeight: '700', fontSize: '15px', color: theme.textPrimary }}>
+            Request Images
+          </span>
+          <span style={{
+            backgroundColor: theme.primary,
+            color:           'white',
+            borderRadius:    theme.radiusFull,
+            fontSize:        '11px',
+            fontWeight:      '700',
+            padding:         '2px 9px',
+          }}>
+            {openImages.length}
+          </span>
+        </div>
+        <button
+          onClick={() => setOpenImages(null)}
+          style={{
+            background:   'transparent',
+            border:       `1px solid ${theme.border}`,
+            borderRadius: theme.radiusFull,
+            width:        '30px',
+            height:       '30px',
+            cursor:       'pointer',
+            fontSize:     '16px',
+            color:        theme.textSecondary,
+            display:      'flex',
+            alignItems:   'center',
+            justifyContent: 'center',
+            lineHeight:   1,
+            padding:      0,
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* ── Gallery Grid ── */}
+      <div style={{
+        overflowY: 'auto',
+        padding:   '16px',
+        display:   'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap:       '12px',
+      }}>
+        {openImages.map((img, i) => (
+          <div
+            key={i}
+            style={{
+              borderRadius: theme.radiusMd,
+              overflow:     'hidden',
+              border:       `1px solid ${theme.border}`,
+              aspectRatio:  '4/3',
+              background:   theme.primaryBg,
+            }}
+          >
+            <img
+              src={img}
+              alt={`Image ${i + 1}`}
+              style={{
+                width:      '100%',
+                height:     '100%',
+                objectFit:  'cover',
+                display:    'block',
+              }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* ── Modal Footer ── */}
+      <div style={{
+        padding:         '12px 20px',
+        borderTop:       `1px solid ${theme.border}`,
+        backgroundColor: theme.primaryBg,
+        display:         'flex',
+        justifyContent:  'flex-end',
+        flexShrink:      0,
+      }}>
+        <button
+          onClick={() => setOpenImages(null)}
+          style={{
+            ...styles.btnPrimary,
+            width:   'auto',
+            padding: '9px 24px',
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Skills needed */}
         {req.needSkill?.length > 0 && (

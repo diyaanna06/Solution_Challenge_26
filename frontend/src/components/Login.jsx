@@ -154,7 +154,7 @@ const handleGoogleLogin = async () => {
              <button
             type="button"
             onClick={() => {
-              setEmail('rahulverma@gmail.com');
+              setEmail('adityasingh@gmail.com');
               setPassword('123456');
             }}
             style={{
@@ -173,7 +173,7 @@ const handleGoogleLogin = async () => {
              <button
             type="button"
             onClick={() => {
-              setEmail('rahulverma@gmail.com');
+              setEmail('kunalmalhotra@gmail.com');
               setPassword('123456');
             }}
             style={{
