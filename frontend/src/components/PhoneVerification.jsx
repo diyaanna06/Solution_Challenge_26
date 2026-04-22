@@ -16,6 +16,7 @@ const PhoneVerification = () => {
 
   useEffect(() => {
     const initializeRecaptcha = () => {
+      auth.settings.appVerificationDisabledForTesting = true;
       if (!window.recaptchaVerifier) {
         window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
           size: 'invisible',
