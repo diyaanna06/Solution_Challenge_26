@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../config/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, orderBy } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import { Wrapper } from '@googlemaps/react-wrapper';
 import { theme, styles, getSeverityColor, getSeverityBg, getStatusColor, getStatusBg, getStatusLabel } from '../theme';
@@ -115,68 +115,57 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const [selectedTeamTask, setSelectedTeamTask] = useState(null);
-    const [openImages, setOpenImages] = useState(null);
+  const [openImages, setOpenImages] = useState(null);
 
-  
   const [promotionData, setPromotionData] = useState({});
   const [selectedIssueLocation, setSelectedIssueLocation] = useState(null);
   const [selectedIssueId, setSelectedIssueId] = useState(null);
 
   useEffect(() => {
-    fetchAllIssues();
-    fetchPendingTasks();
-    fetchStandardUsers();
-    fetchVolunteers();
-  }, []);
-
-  const fetchAllIssues = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'requests'));
-      const issues = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
+    const unsubIssues = onSnapshot(collection(db, 'requests'), (snapshot) => {
+      const issues = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       issues.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       setAllIssues(issues);
 
-      if (issues.length > 0 && issues[0].location) {
-        setSelectedIssueLocation(issues[0].location);
-        setSelectedIssueId(issues[0].id);
+      setSelectedIssueLocation(prev => {
+        if (!prev && issues.length > 0 && issues[0].location) {
+          setSelectedIssueId(issues[0].id);
+          return issues[0].location;
+        }
+        return prev;
+      });
+    });
+
+    const unsubPending = onSnapshot(
+      query(collection(db, 'requests'), where('status', '==', 'pending_approval')),
+      (snapshot) => {
+        setPendingTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       }
-    } catch (error) {
-      console.error("Error fetching all issues:", error);
-    }
-  };
+    );
 
-  const fetchPendingTasks = async () => {
-    try {
-      const q = query(collection(db, 'requests'), where('status', '==', 'pending_approval'));
-      const querySnapshot = await getDocs(q);
-      setPendingTasks(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    } catch (error) {
-      console.error("Error fetching tasks:", error);
-    }
-  };
+    const unsubUsers = onSnapshot(
+      query(collection(db, 'users'), where('role', '==', 'user')),
+      (snapshot) => {
+        setStandardUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }
+    );
 
-  const fetchStandardUsers = async () => {
-    try {
-      const q = query(collection(db, 'users'), where('role', '==', 'user'));
-      const querySnapshot = await getDocs(q);
-      setStandardUsers(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    } catch (error) {
-      console.error("Error fetching standard users:", error);
-    }
-  };
+    const unsubVolunteers = onSnapshot(
+      query(collection(db, 'users'), where('role', '==', 'volunteer')),
+      (snapshot) => {
+        setVolunteers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoading(false);
+      }
+    );
 
-  const fetchVolunteers = async () => {
-    try {
-      const q = query(collection(db, 'users'), where('role', '==', 'volunteer'));
-      const querySnapshot = await getDocs(q);
-      setVolunteers(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    } catch (error) {
-      console.error("Error fetching volunteers:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      unsubIssues();
+      unsubPending();
+      unsubUsers();
+      unsubVolunteers();
+    };
+  }, []);
+
 const handleApprove = async (taskId) => {
   // ── replaced: window.confirm ──────────────────────────────────────────────
   const confirmed = window.confirm("Approve this resolution?");
@@ -188,8 +177,6 @@ const handleApprove = async (taskId) => {
       status: 'resolved',
       resolvedAt: new Date().toISOString(),
     });
-    setPendingTasks(prev => prev.filter(t => t.id !== taskId));
-    fetchAllIssues();
     toast.success('Resolution approved successfully!');       
   } catch (error) {
     console.error(error);
@@ -241,8 +228,6 @@ const handleReject = async (taskId) => {
       resolution: null,
       adminFeedback: reason,
     });
-    setPendingTasks(prev => prev.filter(t => t.id !== taskId));
-    fetchAllIssues();
     toast.info('Resolution rejected and sent back to active.');
   } catch (error) {
     console.error(error);
@@ -277,9 +262,6 @@ const handlePromoteToVolunteer = async (userObj) => {
 
   try {
     await updateDoc(doc(db, 'users', uid), { role: 'volunteer', skills: skillsArray });
-    const updatedUser = { ...userObj, role: 'volunteer', skills: skillsArray };
-    setStandardUsers(prev => prev.filter(u => u.id !== uid));
-    setVolunteers(prev => [updatedUser, ...prev]);
     toast.success(`${userObj.name || 'User'} promoted to Volunteer!`);
   } catch (error) {
     console.error(error);

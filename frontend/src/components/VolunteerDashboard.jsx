@@ -1,9 +1,9 @@
- import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Wrapper } from '@googlemaps/react-wrapper';
 import { toast } from 'react-toastify';
 import { auth, db } from '../config/firebase';
 import { theme, styles, getSeverityColor, getSeverityBg, getStatusColor, getStatusLabel } from '../theme';
-import { collection, query, where, getDocs, updateDoc, getDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, getDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import CreateRequest from './CreateRequest';
 import SubmitResolution from './SubmitResolution';
 import NearbyTasksMap from './NearbyTasksMap';
@@ -85,9 +85,9 @@ const LocationPickerMap = ({ location, setLocation }) => {
 
   return <div ref={mapRef} style={{ width: '100%', height: '300px', borderRadius: '8px', marginTop: '10px', border: '1px solid #ccc' }} />;
 };
+
 const VolunteerDashboard = () => {
-  // ── replace with your real state ──────────────────────────────────────────
- const [pendingInvites, setPendingInvites] = useState([]);
+  const [pendingInvites, setPendingInvites] = useState([]);
   const [workLocation, setWorkLocation] = useState(null);
   const [skills, setSkills] = useState([]);
   const [activeTasks, setActiveTasks] = useState([]);
@@ -98,8 +98,8 @@ const VolunteerDashboard = () => {
   const [resolvingTaskId, setResolvingTaskId] = useState(null);
   const [mapCenter, setMapCenter] = useState({ lat: 26.8054, lng: 81.0209 });
   const [selectedTeamTask, setSelectedTeamTask] = useState(null);
-   const [openImages, setOpenImages] = useState(null);
-   const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [openImages, setOpenImages] = useState(null);
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
 
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [tempLocation, setTempLocation] = useState(null);
@@ -108,103 +108,132 @@ const VolunteerDashboard = () => {
 
   const user = auth.currentUser;
 
-useEffect(() => {
-    if (user) {
-      fetchVolunteerData();
-      fetchAssignedTasks();
-      fetchPendingInvites();
-    }
-  }, [user]);
+  // keep a ref to the nearby unsub so we can restart it when workLocation changes
+  const unsubNearbyRef = useRef(null);
 
-  const formatDate = (value) => {
-  if (!value) return '';
-  if (typeof value === 'object' && value.seconds) {
-    return new Date(value.seconds * 1000).toLocaleString();
-  }
+  useEffect(() => {
+    if (!user) return;
 
-  if (value instanceof Date) {
-    return value.toLocaleString();
-  }
+    fetchVolunteerData();
 
-  if (typeof value === 'number') {
-    return new Date(
-      value < 1e12 ? value * 1000 : value // detect seconds vs ms
-    ).toLocaleString();
-  }
-  if (typeof value === 'string') {
-    const cleaned = value
-      .replace(' at ', ' ')
-      .replace('UTC', '');
+    // ── Assigned tasks listener ──────────────────────────────────────────
+    const unsubAssigned = onSnapshot(
+      query(collection(db, 'requests'), where('volunteerTeam', 'array-contains', user.uid)),
+      (snapshot) => {
+        const active = [];
+        const completed = [];
+        snapshot.forEach((d) => {
+          const task = { id: d.id, ...d.data() };
+          if (task.status === 'active') active.push(task);
+          else completed.push(task);
+        });
+        setActiveTasks(active);
+        setCompletedTasks(completed);
+        setLoading(false);
+      }
+    );
 
-    const d = new Date(cleaned);
-    return isNaN(d) ? value : d.toLocaleString();
-  }
-
-  return '';
-};
-  const fetchPendingInvites = async () => {
-    try {
-      const q = query(
-        collection(db, 'requests'), 
+    // ── Pending invites listener ─────────────────────────────────────────
+    const unsubInvites = onSnapshot(
+      query(
+        collection(db, 'requests'),
         where('invitedVolunteers', 'array-contains', user.uid),
         where('status', '==', 'active')
-      );
-      const snap = await getDocs(q);
-      const invites = [];
-      snap.forEach(doc => invites.push({ id: doc.id, ...doc.data() }));
-      setPendingInvites(invites);
-    } catch (error) {
-      console.error("Error fetching invites:", error);
+      ),
+      (snapshot) => {
+        const invites = [];
+        snapshot.forEach((d) => invites.push({ id: d.id, ...d.data() }));
+        setPendingInvites(invites);
+      }
+    );
+
+    return () => {
+      unsubAssigned();
+      unsubInvites();
+      if (unsubNearbyRef.current) unsubNearbyRef.current();
+    };
+  }, [user]);
+
+  const subscribeNearbyTasks = (userLoc) => {
+    // tear down any existing nearby listener first
+    if (unsubNearbyRef.current) unsubNearbyRef.current();
+
+    const unsub = onSnapshot(
+      query(collection(db, 'requests'), where('status', '==', 'active')),
+      (snapshot) => {
+        const tasksInRange = [];
+        snapshot.forEach((d) => {
+          const task = { id: d.id, ...d.data() };
+          if (task.location) {
+            const dist = calculateDistance(userLoc.lat, userLoc.lng, task.location.lat, task.location.lng);
+            if (dist <= 20) tasksInRange.push(task);
+          }
+        });
+        tasksInRange.sort((a, b) => (b.criticalScore || 0) - (a.criticalScore || 0));
+        setNearbyTasks(tasksInRange);
+      }
+    );
+
+    unsubNearbyRef.current = unsub;
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '';
+    if (typeof value === 'object' && value.seconds) {
+      return new Date(value.seconds * 1000).toLocaleString();
     }
+    if (value instanceof Date) {
+      return value.toLocaleString();
+    }
+    if (typeof value === 'number') {
+      return new Date(value < 1e12 ? value * 1000 : value).toLocaleString();
+    }
+    if (typeof value === 'string') {
+      const cleaned = value.replace(' at ', ' ').replace('UTC', '');
+      const d = new Date(cleaned);
+      return isNaN(d) ? value : d.toLocaleString();
+    }
+    return '';
   };
 
   const handleAcceptInvite = async (request) => {
-  try {
-    await updateDoc(doc(db, 'requests', request.id), {
-      invitedVolunteers: arrayRemove(user.uid),
-      volunteerTeam:     arrayUnion(user.uid),
-    });
-    toast.success('You have joined the team!');              
-    fetchPendingInvites();
-    fetchAssignedTasks();
-    if (workLocation) fetchNearbyTasks(workLocation);
-  } catch (error) {
-    console.error(error);
-    toast.error('Failed to accept invite. Please try again.');
-  }
-};
+    try {
+      await updateDoc(doc(db, 'requests', request.id), {
+        invitedVolunteers: arrayRemove(user.uid),
+        volunteerTeam:     arrayUnion(user.uid),
+      });
+      toast.success('You have joined the team!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to accept invite. Please try again.');
+    }
+  };
 
-const handleDeclineInvite = async (request) => {
-  try {
-    await updateDoc(doc(db, 'requests', request.id), {
-      invitedVolunteers: arrayRemove(user.uid),
-    });
-    toast.info('Invite declined.');                           
-    fetchPendingInvites();
-  } catch (error) {
-    console.error(error);
-    toast.error('Failed to decline invite.');                 
-  }
-};
+  const handleDeclineInvite = async (request) => {
+    try {
+      await updateDoc(doc(db, 'requests', request.id), {
+        invitedVolunteers: arrayRemove(user.uid),
+      });
+      toast.info('Invite declined.');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to decline invite.');
+    }
+  };
 
-
-
-const handleJoinTeam = async (request, e) => {
-  e.stopPropagation();
-  if (!user) return;
-  try {
-    await updateDoc(doc(db, 'requests', request.id), {
-      volunteerTeam: arrayUnion(user.uid),
-    });
-    toast.success('You have successfully joined the team!'); 
-    fetchAssignedTasks();
-    if (workLocation) fetchNearbyTasks(workLocation);
-  } catch (error) {
-    console.error(error);
-    toast.error('Failed to join the team. Please try again.');
-  }
-};
-
+  const handleJoinTeam = async (request, e) => {
+    e.stopPropagation();
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'requests', request.id), {
+        volunteerTeam: arrayUnion(user.uid),
+      });
+      toast.success('You have successfully joined the team!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to join the team. Please try again.');
+    }
+  };
 
   const fetchVolunteerData = async () => {
     const userRef = doc(db, 'users', user.uid);
@@ -212,17 +241,17 @@ const handleJoinTeam = async (request, e) => {
     if (userSnap.exists()) {
       const data = userSnap.data();
       if (data.skills) setSkills(data.skills);
-      
+
       if (data.workLocation) {
         setWorkLocation(data.workLocation);
-        fetchNearbyTasks(data.workLocation);
-        setMapCenter(data.workLocation); 
+        subscribeNearbyTasks(data.workLocation);
+        setMapCenter(data.workLocation);
       } else {
         setTempLocation({ lat: 26.8054, lng: 81.0209 });
         setShowLocationModal(true);
       }
     }
-    setLoading(false); 
+    setLoading(false);
   };
 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -234,85 +263,44 @@ const handleJoinTeam = async (request, e) => {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
   };
 
-  const fetchNearbyTasks = async (userLoc) => {
-    try {
-      const q = query(collection(db, 'requests'), where('status', '==', 'active'));
-      const snap = await getDocs(q);
-      
-      const tasksInRange = [];
-      snap.forEach(document => {
-        const task = { id: document.id, ...document.data() };
-        if (task.location) {
-          const dist = calculateDistance(userLoc.lat, userLoc.lng, task.location.lat, task.location.lng);
-          if (dist <= 20) tasksInRange.push(task);
-        }
-      });
-      tasksInRange.sort((a, b) => (b.criticalScore || 0) - (a.criticalScore || 0));
-      setNearbyTasks(tasksInRange);
-    } catch (error) {
-      console.error("Error fetching nearby tasks:", error);
+  const handleAutoDetect = () => {
+    if (!navigator.geolocation) {
+      toast.warning('Geolocation is not supported by your browser.');
+      return;
     }
+    toast.info('Detecting your location…');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setTempLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+        toast.success('Location captured! Drag the pin to refine if needed.');
+        setLocationStatusMsg('');
+      },
+      (error) => {
+        console.error(error);
+        toast.error('Could not auto-detect location. Drag the pin manually.');
+      },
+      { enableHighAccuracy: true }
+    );
   };
 
-  const fetchAssignedTasks = async () => {
+  const handleSaveLocation = async () => {
+    if (!tempLocation) return;
+    setIsSavingLocation(true);
     try {
-      const q = query(collection(db, 'requests'), where('volunteerTeam', 'array-contains', user.uid));
-      const querySnapshot = await getDocs(q);
-      const active = [];
-      const completed = [];
-
-      querySnapshot.forEach((doc) => {
-        const task = { id: doc.id, ...doc.data() };
-        if (task.status === 'active') active.push(task);
-        else completed.push(task);
-      });
-
-      setActiveTasks(active);
-      setCompletedTasks(completed);
+      await updateDoc(doc(db, 'users', user.uid), { workLocation: tempLocation });
+      setWorkLocation(tempLocation);
+      setMapCenter(tempLocation);
+      subscribeNearbyTasks(tempLocation);
+      setShowLocationModal(false);
+      toast.success('Work location saved!');
     } catch (error) {
-      console.error("Error fetching tasks:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-const handleAutoDetect = () => {
-  if (!navigator.geolocation) {
-    toast.warning('Geolocation is not supported by your browser.'); 
-    return;
-  }
-  toast.info('Detecting your location…');                          
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      setTempLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-      toast.success('Location captured! Drag the pin to refine if needed.'); 
-      setLocationStatusMsg('');
-    },
-    (error) => {
       console.error(error);
-      toast.error('Could not auto-detect location. Drag the pin manually.');
-    },
-    { enableHighAccuracy: true }
-  );
-};
+      toast.error('Failed to save location. Please try again.');
+    } finally {
+      setIsSavingLocation(false);
+    }
+  };
 
-const handleSaveLocation = async () => {
-  if (!tempLocation) return;
-  setIsSavingLocation(true);
-  try {
-    await updateDoc(doc(db, 'users', user.uid), { workLocation: tempLocation });
-    setWorkLocation(tempLocation);
-    setMapCenter(tempLocation);
-    fetchNearbyTasks(tempLocation);
-    setShowLocationModal(false);
-    toast.success('Work location saved!');                    
-  } catch (error) {
-    console.error(error);
-    toast.error('Failed to save location. Please try again.');
-  } finally {
-    setIsSavingLocation(false);
-  }
-};
   return (
     <div style={{ fontFamily: theme.fontFamily, minHeight: '100vh', backgroundColor: theme.bg }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '28px 20px' }}>
@@ -640,11 +628,11 @@ const handleSaveLocation = async () => {
                     </span>
                   </div>
                     
-                     {task.createdAt && (
-                      <div style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '10px' }}>
-                        📅 {formatDate(task.createdAt)}
-                      </div>
-                    )}
+                  {task.createdAt && (
+                    <div style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '10px' }}>
+                      📅 {formatDate(task.createdAt)}
+                    </div>
+                  )}
                   <p style={{ margin: '0 0 16px 0', fontSize: '15px', color: theme.textPrimary, lineHeight: 1.55 }}>
                     {task.description}
                   </p>
@@ -872,7 +860,7 @@ const handleSaveLocation = async () => {
                     <SubmitResolution
                       task={task}
                       onCancel={() => setResolvingTaskId(null)}
-                      onSuccess={() => { setResolvingTaskId(null); fetchAssignedTasks(); }}
+                      onSuccess={() => setResolvingTaskId(null)}
                     />
                   ) : (
                     <button
@@ -921,10 +909,10 @@ const handleSaveLocation = async () => {
     return (
       <div
         key={req.id}
-       onClick={() => {
-  setMapCenter({ lat: req.location.lat, lng: req.location.lng });
-  setSelectedTaskId(req.id); 
-}}
+        onClick={() => {
+          setMapCenter({ lat: req.location.lat, lng: req.location.lng });
+          setSelectedTaskId(req.id);
+        }}
         style={{
           backgroundColor: 'white',
           padding:         '14px',
@@ -964,7 +952,7 @@ const handleSaveLocation = async () => {
               fontSize:        '12px',
               fontWeight:      '700',
               color:           isFull ? theme.danger : theme.success,
-              backgroundColor: isFull ? theme.dangerLight : theme.successLight,
+              backgroundColor: isFull ? theme.dannerLight : theme.successLight,
               border:          `1px solid ${isFull ? theme.dangerBorder : theme.successBorder}`,
               borderRadius:    theme.radiusFull,
               padding:         '3px 10px',
@@ -1207,11 +1195,11 @@ const handleSaveLocation = async () => {
     <div style={{ flex: 1, borderRadius: theme.radiusLg, overflow: 'hidden', border: `1px solid ${theme.border}` }}>
       {workLocation ? (
         <NearbyTasksMap
-  center={mapCenter}
-  baseLocation={workLocation}
-  tasks={nearbyTasks}
-  selectedTaskId={selectedTaskId}
-/>
+          center={mapCenter}
+          baseLocation={workLocation}
+          tasks={nearbyTasks}
+          selectedTaskId={selectedTaskId}
+        />
       ) : (
         <div style={{
           width:           '100%',

@@ -2,12 +2,11 @@ import React, { useState } from 'react';
 import { auth } from '../config/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { toast } from 'react-toastify';
+import { theme,styles } from '../theme.js';
 
  
 const SetPassword = () => {
 const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   
