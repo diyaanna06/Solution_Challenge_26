@@ -189,7 +189,7 @@ const HomePage = () => {
             {/* CTAs */}
             <div style={{ display:'flex', gap:'14px', justifyContent:'center', flexWrap:'wrap', opacity: heroLoaded?1:0, transform: heroLoaded?'none':'translateY(22px)', transition:'opacity 0.6s 0.3s, transform 0.6s 0.3s' }}>
               <button className="cta-primary" onClick={() => navigate('/login')} style={{ padding:'16px 36px', backgroundColor:'#6EE7B7', color:'#071A0F', border:'none', borderRadius:'12px', fontSize:'15px', fontWeight:'800', cursor:'pointer', boxShadow:'0 6px 28px rgba(110,231,183,0.4)', transition:'transform 0.2s, box-shadow 0.2s', letterSpacing:'0.2px' }}>
-                🚨 Report an Emergency
+                🚨 Report an Issue
               </button>
               <button className="cta-secondary" onClick={() => navigate('/onboarding')} style={{ padding:'16px 32px', backgroundColor:'rgba(255,255,255,0.08)', color:'white', border:'1.5px solid rgba(255,255,255,0.22)', borderRadius:'12px', fontSize:'15px', fontWeight:'700', cursor:'pointer', backdropFilter:'blur(8px)', transition:'transform 0.2s' }}>
                 🤝 Become a Volunteer
@@ -356,9 +356,9 @@ const HomePage = () => {
             <div style={{ position:'absolute', top:'-30px', right:'-30px', width:'150px', height:'150px', borderRadius:'50%', backgroundColor:'rgba(255,255,255,0.07)', pointerEvents:'none' }} />
             <div style={{ fontSize:'40px', marginBottom:'18px' }}>🚨</div>
             <h3 style={{ margin:'0 0 12px', fontSize:'clamp(20px, 3vw, 28px)', fontWeight:'900', lineHeight:1.2, fontFamily:"'Fraunces', Georgia, serif" }}>Need Help Right Now?</h3>
-            <p style={{ margin:'0 0 28px', fontSize:'14px', color:'rgba(255,255,255,0.78)', lineHeight:1.72 }}>Report an emergency and our AI will route the right volunteers to you within minutes.</p>
+            <p style={{ margin:'0 0 28px', fontSize:'14px', color:'rgba(255,255,255,0.78)', lineHeight:1.72 }}>Report an issue and our AI will route the right volunteers to you within minutes.</p>
             <button onClick={() => navigate('/login')} style={{ padding:'13px 28px', backgroundColor:'white', color:'#DC2626', border:'none', borderRadius:'10px', fontSize:'14px', fontWeight:'800', cursor:'pointer', boxShadow:'0 4px 20px rgba(0,0,0,0.18)' }}>
-              Report an Emergency
+              Report an Issue
             </button>
           </div>
           {/* Volunteer card */}
